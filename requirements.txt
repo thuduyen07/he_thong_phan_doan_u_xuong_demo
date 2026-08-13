@@ -3,7 +3,7 @@ flask-cors==6.0.0
 gunicorn==23.0.0
 Pillow==11.2.1
 opencv-python==4.11.0.86
-numpy==2.2.4
+numpy>=2.2.4
 PyYAML==6.0.2
-torch==2.7.1
+torch>=2.7.1
 transformers==4.52.4

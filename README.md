@@ -24,107 +24,105 @@ Khi mở web, người dùng có thể xem các phần sau:
 - phần so sánh giữa các cấu hình SegFormer và đối chứng U-Net
 - chế độ chạy live inference trên ảnh tải lên
 
-## 3. Cách dùng nhanh trên máy mới
+## 3. Pull các file được lưu trữ bằng DVC trước khi chạy
 
-Nếu đây là lần đầu người dùng clone hệ thống về máy mới, cách dùng chuẩn bây giờ là:
+Nếu đang dùng một bản clone mới hoặc một máy chưa có sẵn các file pretrained, hãy kéo các artifact được quản lý bởi DVC trước.
 
-1. chép file key service account vào đúng đường dẫn `configs/ggserviceaccount.json`
-2. chạy script `dev_scripts/up_system.sh`
-3. đợi script tự kiểm tra, tự setup phần cần thiết, tự `dvc pull`, tự dựng web
-4. mở web và dùng hệ thống
-5. khi không dùng nữa thì chạy `dev_scripts/down_system.sh`
-
-### 3.1. Đặt file key đúng chỗ
-
-Người dùng cần được cung cấp file key DVC dạng `.json`.
-
-Sau khi clone repo, hãy chép file key đó vào đúng đường dẫn sau:
-
-```text
-/Users/duyennguyen/Downloads/Master-Thesis/he_thong_phan_doan_u_xuong/configs/ggserviceaccount.json
-```
-
-Trong repo độc lập của hệ thống, đây chính là:
-
-```text
-he_thong_phan_doan_u_xuong/configs/ggserviceaccount.json
-```
-
-Lưu ý:
-
-- file này là credential cục bộ, không được đưa lên Git
-- script `up_system.sh` sẽ đọc key ở đúng đường dẫn này
-- nếu file rỗng, sai định dạng JSON, hoặc đặt sai vị trí thì script sẽ dừng và báo lỗi
-
-### 3.2. Khởi động hệ thống
-
-Từ thư mục gốc của hệ thống `he_thong_phan_doan_u_xuong`, chạy:
+Từ thư mục gốc của repository, chạy:
 
 ```bash
-bash dev_scripts/up_system.sh
+dvc pull \
+  he_thong_phan_doan_u_xuong/resources/pretrained/segformer_b0_ade_512_512/pytorch_model.bin.dvc \
+  he_thong_phan_doan_u_xuong/resources/pretrained/segformer_b0_ade_512_512/model.safetensors.dvc \
+  he_thong_phan_doan_u_xuong/resources/pretrained/segformer_b0_ade_512_512/tf_model.h5.dvc
 ```
 
-Hoặc nếu file đã có quyền thực thi:
+Nếu máy cục bộ của bạn chưa được cấu hình để truy cập DVC remote, hãy cấu hình credential cho remote trước rồi chạy lại `dvc pull`.
+
+Sau khi pull xong, hãy kiểm tra các file pretrained đã xuất hiện trong:
+
+```text
+he_thong_phan_doan_u_xuong/resources/pretrained/segformer_b0_ade_512_512/
+```
+
+Bước này đặc biệt quan trọng khi backend live inference không tìm thấy các file pretrained backbone lúc khởi động.
+
+## 4. Cách khởi động nhanh bằng Docker Compose
+
+Đây là hướng dẫn chi tiết cách dùng hệ thống khi dùng bằng docker compose.
+
+Trước hết, hãy bảo đảm `Docker Desktop` đã được mở và Docker daemon đang chạy.
+
+Từ thư mục gốc của hệ thống, tức là thư mục `he_thong_phan_doan_u_xuong`, chạy:
 
 ```bash
-./dev_scripts/up_system.sh
+docker-compose up --build
 ```
 
-Script này sẽ tự làm các việc sau:
-
-- kiểm tra `python3`
-- kiểm tra file key `configs/ggserviceaccount.json`
-- kiểm tra `dvc`, và nếu chưa có thì thử cài `dvc[gdrive]` bằng `pip --user`
-- cấu hình `DVC remote` cục bộ bằng key vừa được chép vào
-- chạy `dvc pull` cho các file pretrained cần thiết
-- kiểm tra `Docker Compose`
-- kiểm tra `Docker daemon`
-- build và chạy web bằng Docker Compose
-- đợi backend sẵn sàng rồi thông báo đường dẫn truy cập
-
-Sau khi script chạy xong thành công, mở trình duyệt tại:
+Sau khi container khởi động, mở trình duyệt tại:
 
 ```text
 http://127.0.0.1:4173
 ```
 
-### 3.3. Tắt hệ thống
-
-Khi muốn tắt hệ thống, từ thư mục gốc của hệ thống chạy:
+Các lệnh Docker Compose hữu ích:
 
 ```bash
-bash dev_scripts/down_system.sh
+docker-compose up --build -d
+docker-compose logs -f
+docker-compose down
+docker-compose down -v
 ```
 
-Hoặc:
+Ý nghĩa:
+
+- `docker-compose up --build`: build image và chạy hệ thống
+- `docker-compose up --build -d`: chạy nền
+- `docker-compose logs -f`: xem log trực tiếp
+- `docker-compose down`: dừng container nhưng giữ dữ liệu runtime
+- `docker-compose down -v`: dừng container và xóa luôn volume runtime để làm sạch ảnh upload, mask
+
+Nếu máy dùng Docker CLI đời mới có tích hợp Compose plugin, có thể dùng các lệnh tương đương sau:
 
 ```bash
-./dev_scripts/down_system.sh
+docker compose up --build
+docker compose logs -f
+docker compose down
 ```
 
-Script này sẽ chạy lệnh Docker Compose phù hợp để dừng web.
+Lưu ý:
 
-### 3.4. Những gì `up_system.sh` cần từ máy người dùng
+- image được build theo hướng CPU-only
+- container dùng backend cục bộ và các checkpoint đã đóng gói sẵn
+- dữ liệu phát sinh khi chạy live được lưu trong volume `he_thong_phan_doan_u_xuong_runtime_static`
+- bản triển khai này đã được build và chạy thành công bằng `docker-compose` trên máy học viên
 
-Để script chạy trơn, máy người dùng nên có:
+## 5. Cách khởi động trực tiếp bằng Python
 
-- `python3`
-- `pip` đi kèm với `python3`
-- `Docker Desktop` hoặc môi trường Docker tương đương
-- kết nối mạng để cài `dvc` lần đầu nếu máy chưa có sẵn
-- kết nối mạng để `dvc pull` dữ liệu từ remote
+Nếu không dùng Docker, có thể chạy trực tiếp như sau:
 
-Script có thể tự cài `dvc` nếu thiếu, nhưng không tự cài Docker Desktop. Nếu Docker chưa có hoặc Docker daemon chưa chạy, script sẽ dừng và yêu cầu người dùng mở hoặc cài Docker trước.
+Từ thư mục gốc của repository, chạy:
 
-### 3.5. Lỗi thường gặp
+```bash
+../.venv/bin/python server.py
+```
 
-- Nếu script báo thiếu key, hãy kiểm tra lại file `configs/ggserviceaccount.json`.
-- Nếu script báo key không hợp lệ, hãy kiểm tra lại nội dung JSON hoặc xin lại key mới.
-- Nếu script báo không tìm thấy `dvc` sau khi cài, hãy mở terminal mới rồi chạy lại script.
-- Nếu script báo Docker daemon chưa chạy, hãy mở `Docker Desktop` rồi chạy lại.
-- Nếu `dvc pull` lỗi quyền truy cập, rất có thể file key được cấp chưa đúng hoặc đã hết hiệu lực.
+Sau khi chạy, mở trình duyệt tại địa chỉ:
 
-## 4. Các chế độ dùng của hệ thống
+```text
+http://127.0.0.1:4173
+```
+
+Nếu máy không có sẵn môi trường `../.venv`, có thể cài thư viện bằng:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+python3 server.py
+```
+
+## 6. Các chế độ dùng của hệ thống
 
 ### Chế độ 1: Xem các ca minh họa đã chuẩn bị sẵn
 
@@ -164,7 +162,7 @@ Kết quả trả về gồm:
 - mask phân đoạn
 - thông tin metadata như loại model, số pixel foreground, kích thước ảnh đã xử lý, và đường dẫn checkpoint
 
-## 5. Các model đang được giữ lại trong hệ thống
+## 7. Các model đang được giữ lại trong hệ thống
 
 Hệ thống hiện chỉ giữ các model thuộc lớp bằng chứng thực nghiệm chính được dùng để trình bày trong luận văn.
 
@@ -181,7 +179,7 @@ Model mặc định của chế độ live là:
 
 Đây là checkpoint được chọn theo tiêu chí validation loss trong phần thực nghiệm chính.
 
-## 6. Cấu trúc thư mục chính
+## 8. Cấu trúc thư mục chính
 
 - `server.py`: điểm khởi động của toàn bộ web
 - `backend/`: API và backend inference cục bộ
@@ -189,18 +187,14 @@ Model mặc định của chế độ live là:
 - `resources/`: checkpoint, metadata, và tài nguyên đã đóng gói
 - `runtime_src/`: mã nguồn tối thiểu cần thiết để backend chạy độc lập
 - `runtime_static/`: nơi lưu ảnh tải lên và kết quả phát sinh khi chạy live
-- `configs/ggserviceaccount.json`: nơi người dùng chép key DVC cục bộ
-- `dev_scripts/up_system.sh`: script khởi động hệ thống cho người dùng cuối
-- `dev_scripts/down_system.sh`: script tắt hệ thống
 - `Dockerfile`: cấu hình build image Docker cho hệ standalone
 - `compose.yaml`: cấu hình Docker Compose để chạy hệ thống bằng một lệnh
 - `.dockerignore`: loại các file không cần thiết khỏi build context để image gọn hơn
 
-## 7. Ghi chú kỹ thuật ngắn
+## 9. Ghi chú kỹ thuật ngắn
 
 - Backend trong thư mục này là backend cục bộ, chạy độc lập với các checkpoint đã được chép sẵn.
 - Nếu mở web nhưng chưa thấy kết quả live, chỉ cần kiểm tra lại backend và chạy lại model mong muốn.
 - Docker image chạy bằng `gunicorn` với `1` worker để tránh nạp lặp model nặng không cần thiết.
 - Healthcheck của container dùng endpoint `/health` để kiểm tra backend đã sẵn sàng hay chưa.
 - Nếu lệnh Docker báo không kết nối được daemon, chỉ cần mở `Docker Desktop` rồi chạy lại.
-- Script `up_system.sh` chỉ kéo đúng các artifact DVC cần cho hệ thống demo này.
