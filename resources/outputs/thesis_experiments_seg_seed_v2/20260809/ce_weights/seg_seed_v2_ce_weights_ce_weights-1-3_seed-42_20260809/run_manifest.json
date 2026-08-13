@@ -1,0 +1,62 @@
+{
+  "project": "Master-Thesis",
+  "subproject": "bone_seg_option1",
+  "experiment_id": "seg_seed_v2_ce_weights_ce_weights-1-3_seed-42_20260809",
+  "run_date": "2026-08-10T05:16:40Z",
+  "task_family": "segmentation",
+  "branch_name": "seg_seed_v2_ce_weights",
+  "source_config_path": "bone_seg_option1/outputs/thesis_experiments_seg_seed_v2/20260809/ce_weights/seg_seed_v2_ce_weights_ce_weights-1-3_seed-42_20260809/config_snapshot.yaml",
+  "git_commit_if_available": "94a44f3ce37f8d46ebb29b7880225f01ac075483",
+  "dataset_snapshot": {
+    "images_dir": "../../datasets/BV_ChinhHinh_Data/labeled_data_for_train",
+    "masks_dir": "outputs/seg_seed_v2_data/masks",
+    "split_dir": "splits_seed_v2",
+    "require_masks": true,
+    "img_size": 224,
+    "num_classes": 2,
+    "train_patients": 38,
+    "val_patients": 8,
+    "test_patients": 9
+  },
+  "device": "cpu",
+  "epochs_planned": 8,
+  "epochs_completed_at_export": 8,
+  "best_metric_name": "val_loss",
+  "best_metric_value": 0.436050983145833,
+  "best_checkpoint_filename": "seg_best.pt",
+  "related_notes": [
+    "project_knowledge/experiments.md"
+  ],
+  "related_local_outputs": [
+    "bone_seg_option1/outputs/thesis_experiments_seg_seed_v2/20260809/ce_weights/seg_seed_v2_ce_weights_ce_weights-1-3_seed-42_20260809"
+  ],
+  "status": "completed",
+  "runtime_context": {
+    "device": "cpu",
+    "python_platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "host": "Duyens-MacBook-Pro.local",
+    "cuda_available": false,
+    "mps_available": false,
+    "created_at_local": "2026-08-10 12:16:41",
+    "updated_at_local": "2026-08-10 12:37:09"
+  },
+  "experiment_tags": {
+    "ce_weights": [
+      1.0,
+      3.0
+    ]
+  },
+  "seed": 42,
+  "method_name": "seg_seed_v2_ce_weights",
+  "latest_metrics": {
+    "val_loss": 0.7181283547542989,
+    "tumor_dice": 0.6179550206748432,
+    "tumor_iou": 0.5041484054531209,
+    "tumor_precision": 0.6415539114528862,
+    "tumor_recall": 0.6883620367579733,
+    "primary_dice": 0.6179550206748432,
+    "epoch": 8,
+    "train_loss": 0.2729481611881525,
+    "epoch_seconds": 124.95012754100026
+  }
+}

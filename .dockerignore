@@ -1,0 +1,17 @@
+.DS_Store
+.git
+.gitignore
+.pytest_cache
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc
+configs/
+dev_scripts/
+
+runtime_static/uploads/*
+runtime_static/results/*
+
+resources/pretrained/segformer_b0_ade_512_512/tf_model.h5

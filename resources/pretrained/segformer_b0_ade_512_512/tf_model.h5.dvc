@@ -1,0 +1,5 @@
+outs:
+- md5: 311cde9720ffd81a69240627e1a0dc67
+  size: 15285696
+  hash: md5
+  path: tf_model.h5

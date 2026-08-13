@@ -1,0 +1,61 @@
+{
+  "project": "Master-Thesis",
+  "subproject": "bone_seg_option1",
+  "experiment_id": "segformer_balanced76_finetune_512_batch4_proposed_hyperpara",
+  "run_date": "2026-08-12T16:13:41Z",
+  "task_family": "segmentation",
+  "branch_name": "segformer_balanced76_finetune_512_batch4_proposed_hyperpara",
+  "source_config_path": "bone_seg_option1/configs/segformer_balanced76_finetune_512_batch4_proposed_hyperpara.yaml",
+  "git_commit_if_available": "24fcdc6ff5abae9ddbb9bf58146df0a329532bd8",
+  "dataset_snapshot": {
+    "images_dir": "../../datasets/BV_ChinhHinh_Data/labeled_data_for_train",
+    "masks_dir": "../../datasets/BV_ChinhHinh_Data/labeled_mask_for_train",
+    "split_dir": "outputs/manual_mask_benchmark_patient_level_v2_balanced76/splits_trainvaltest_seed42",
+    "require_masks": true,
+    "img_size": 512,
+    "num_classes": 1,
+    "train_patients": 92,
+    "val_patients": 30,
+    "test_patients": 30
+  },
+  "device": "mps",
+  "epochs_planned": 100,
+  "epochs_completed_at_export": 100,
+  "best_metric_name": "val_loss",
+  "best_metric_value": 0.871940973926993,
+  "best_checkpoint_filename": "seg_best.pt",
+  "related_notes": [
+    "project_knowledge/experiments.md"
+  ],
+  "related_local_outputs": [
+    "bone_seg_option1/outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara"
+  ],
+  "status": "completed",
+  "runtime_context": {
+    "device": "mps",
+    "python_platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "host": "Duyens-MacBook-Pro.local",
+    "cuda_available": false,
+    "mps_available": false,
+    "created_at_local": "2026-08-12 23:13:41",
+    "updated_at_local": "2026-08-12 23:48:40"
+  },
+  "experiment_tags": {
+    "benchmark": "balanced76_1class_512_batch4_proposed_hyperpara",
+    "split_scheme": "stratified_patient_level_60_20_20"
+  },
+  "seed": 42,
+  "method_name": "segformer_balanced76_finetune_512_batch4_proposed_hyperpara",
+  "latest_metrics": {
+    "val_loss": 1.0501907871049994,
+    "tumor_dice": 0.3065354835576134,
+    "tumor_iou": 0.2367977099812764,
+    "tumor_precision": 0.442190094736178,
+    "tumor_recall": 0.3150636109604038,
+    "primary_dice": 0.3065354835576134,
+    "epoch": 100,
+    "train_loss": 0.10447497738163862,
+    "epoch_seconds": 78.47421508299885,
+    "lr": 0.0
+  }
+}

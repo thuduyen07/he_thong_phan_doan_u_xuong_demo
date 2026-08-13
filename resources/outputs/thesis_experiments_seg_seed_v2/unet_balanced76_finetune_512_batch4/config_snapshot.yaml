@@ -1,0 +1,35 @@
+seed: 42
+device: mps
+img_size: 512
+batch_size: 4
+num_workers: 4
+epochs: 100
+lr: 0.0001
+weight_decay: 0.01
+auto_resume: true
+init_checkpoint_path: null
+model_type: unet
+num_classes: 1
+ce_weights:
+- 1.0
+unet:
+  in_channels: 3
+  base_channels: 32
+data:
+  images_dir: ../../datasets/BV_ChinhHinh_Data/labeled_data_for_train
+  pseudo_masks_dir: ../../datasets/BV_ChinhHinh_Data/labeled_mask_for_train
+  patient_labels_csv: data/patient_labels.csv
+  split_dir: outputs/manual_mask_benchmark_patient_level_v2_balanced76/splits_trainvaltest_seed42
+  require_masks: true
+output_dir: outputs/unet_balanced76_finetune_512_batch4
+experiment:
+  method_name: unet_balanced76_finetune_512_batch4
+  task_family: segmentation
+  date: '20260813'
+  run_name: unet_balanced76_finetune_512_batch4
+  enable_managed_output_dir: false
+  output_dir: outputs/unet_balanced76_finetune_512_batch4
+  tags:
+    benchmark: balanced76_1class_512_batch4
+    split_scheme: stratified_patient_level_60_20_20
+local_model_path: null

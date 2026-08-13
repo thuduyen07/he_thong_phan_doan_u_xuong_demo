@@ -1,0 +1,27 @@
+{
+  "primary_metric": "val_loss",
+  "primary_value": 0.5273122470825911,
+  "secondary_metrics": {
+    "best_primary_dice": 0.6480466550587924,
+    "best_tumor_dice": 0.6480466550587924,
+    "best_tumor_iou": 0.5246205746049462,
+    "best_tumor_precision": 0.66967851634652,
+    "best_tumor_recall": 0.7300679406508278,
+    "best_lesion_dice": null,
+    "total_train_seconds": 1492.2846587910026,
+    "peak_memory_mb": null,
+    "parameter_count": 3714658,
+    "train_batch_size": 2,
+    "img_size": 224,
+    "seed": 42,
+    "lr": 0.0001,
+    "weight_decay": 0.01,
+    "ce_weights": [
+      1.0,
+      2.0
+    ]
+  },
+  "best_epoch": 2,
+  "latest_epoch": 8,
+  "status": "completed"
+}

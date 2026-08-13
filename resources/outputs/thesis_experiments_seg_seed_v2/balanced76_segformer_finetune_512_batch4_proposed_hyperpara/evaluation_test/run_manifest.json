@@ -1,0 +1,21 @@
+{
+  "protocol_name": "segmentation_generic_evaluation",
+  "checkpoint_path": "outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara/seg_best.pt",
+  "config_path": "outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara/config_snapshot.yaml",
+  "split": "test",
+  "images_dir": "../../datasets/BV_ChinhHinh_Data/labeled_data_for_train",
+  "masks_dir": "../../datasets/BV_ChinhHinh_Data/labeled_mask_for_train",
+  "split_dir": "outputs/manual_mask_benchmark_patient_level_v2_balanced76/splits_trainvaltest_seed42",
+  "output_dir": "outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara/evaluation_test",
+  "patient_metadata_csv": "/Users/duyennguyen/Downloads/Master-Thesis/datasets/infos/patient_with_labels.csv",
+  "image_metadata_csv": "/Users/duyennguyen/Downloads/Master-Thesis/datasets/infos/bv_chinhhinh_images_info.csv",
+  "surface_metrics_requested": false,
+  "inference_mode": "resize_whole",
+  "tile_size": 0,
+  "tile_overlap": 0,
+  "num_workers": 4,
+  "torch_num_threads": 1,
+  "torch_num_interop_threads": 1,
+  "cpu_count": 8,
+  "model_type": "segformer"
+}

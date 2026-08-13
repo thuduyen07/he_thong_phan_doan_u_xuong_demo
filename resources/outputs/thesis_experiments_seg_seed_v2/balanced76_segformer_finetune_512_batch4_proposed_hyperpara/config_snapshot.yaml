@@ -1,0 +1,39 @@
+seed: 42
+device: mps
+img_size: 512
+batch_size: 4
+num_workers: 4
+epochs: 100
+lr: 6.0e-05
+weight_decay: 0.01
+auto_resume: true
+init_checkpoint_path: null
+model_type: segformer
+model_name: nvidia/segformer-b0-finetuned-ade-512-512
+pretrained: true
+local_model_path: /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/pretrained/segformer_b0_ade_512_512
+local_files_only: true
+num_classes: 1
+ce_weights:
+- 1.0
+scheduler:
+  name: poly
+  total_iters: auto
+  power: 1.0
+data:
+  images_dir: ../../datasets/BV_ChinhHinh_Data/labeled_data_for_train
+  pseudo_masks_dir: ../../datasets/BV_ChinhHinh_Data/labeled_mask_for_train
+  patient_labels_csv: data/patient_labels.csv
+  split_dir: outputs/manual_mask_benchmark_patient_level_v2_balanced76/splits_trainvaltest_seed42
+  require_masks: true
+output_dir: outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara
+experiment:
+  method_name: segformer_balanced76_finetune_512_batch4_proposed_hyperpara
+  task_family: segmentation
+  date: '20260811'
+  run_name: segformer_balanced76_finetune_512_batch4_proposed_hyperpara
+  enable_managed_output_dir: false
+  output_dir: outputs/balanced76_segformer_finetune_512_batch4_proposed_hyperpara
+  tags:
+    benchmark: balanced76_1class_512_batch4_proposed_hyperpara
+    split_scheme: stratified_patient_level_60_20_20

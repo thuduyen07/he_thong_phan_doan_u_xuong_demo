@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hệ thống phân đoạn u xương</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Thesis Defense System</p>
+          <h1>Hệ thống phân đoạn u xương trên ảnh X-quang</h1>
+          <p class="hero-text">
+            Web trình diễn độc lập cho luận văn: tổng hợp pipeline SegFormer-B0,
+            minh họa ca tiêu biểu, bảng thực nghiệm, và khu vực demo segmentation
+            để bảo vệ trước hội đồng.
+          </p>
+          <div class="hero-actions">
+            <a href="#demo-lab" class="primary-link">Mở khu vực demo</a>
+            <a href="#experiments" class="secondary-link">Xem kết quả thực nghiệm</a>
+          </div>
+        </div>
+        <div class="hero-metrics" id="hero-metrics"></div>
+      </header>
+
+      <main class="content-grid">
+        <section class="panel spotlight-panel" id="system-overview">
+          <div class="panel-heading">
+            <p class="section-tag">01. System Story</p>
+            <h2>Khung hệ thống và phạm vi bằng chứng</h2>
+          </div>
+          <div class="overview-grid">
+            <div class="story-card">
+              <h3>Mục tiêu luận văn</h3>
+              <p id="thesis-title"></p>
+            </div>
+            <div class="story-card">
+              <h3>Dữ liệu hiện hành</h3>
+              <div id="dataset-summary" class="stack-list"></div>
+            </div>
+            <div class="story-card">
+              <h3>Thông điệp bảo vệ</h3>
+              <div id="defense-points" class="stack-list"></div>
+            </div>
+          </div>
+          <div class="pipeline-strip" id="pipeline-strip"></div>
+        </section>
+
+        <section class="panel" id="demo-lab">
+          <div class="panel-heading">
+            <p class="section-tag">02. Demo Lab</p>
+            <h2>Demo segmentation và xem artifact</h2>
+          </div>
+          <div class="lab-grid">
+            <aside class="lab-sidebar">
+              <div class="control-card">
+                <h3>Chế độ trình diễn</h3>
+                <div class="mode-toggle">
+                  <button type="button" class="mode-button active" data-mode="curated">
+                    Artifact mode
+                  </button>
+                  <button type="button" class="mode-button" data-mode="live">
+                    Live inference
+                  </button>
+                </div>
+                <p class="muted-note" id="mode-description"></p>
+              </div>
+
+              <div class="control-card" id="curated-controls">
+                <h3>Ca minh họa</h3>
+                <div id="case-list" class="case-list"></div>
+              </div>
+
+              <div class="control-card hidden" id="live-controls">
+                <h3>Live segmentation bằng checkpoint cục bộ</h3>
+                <div class="inline-actions">
+                  <button type="button" id="check-backend" class="action-button ghost">
+                    Kiểm tra backend
+                  </button>
+                  <button type="button" id="refresh-models" class="action-button ghost">
+                    Tải model
+                  </button>
+                </div>
+                <p class="muted-note" id="backend-status"></p>
+                <label class="field-label" for="live-upload">Ảnh X-quang</label>
+                <input id="live-upload" class="text-input" type="file" accept="image/*" />
+                <label class="field-label" for="model-select">Model</label>
+                <select id="model-select" class="text-input"></select>
+                <button type="button" id="run-live-segmentation" class="action-button">
+                  Chạy segmentation
+                </button>
+                <button
+                  type="button"
+                  id="toggle-uncertainty"
+                  class="action-button ghost"
+                  disabled
+                >
+                  Uncertainty score
+                </button>
+                <p class="muted-note">
+                  Chế độ này dùng backend cục bộ của chính thư mục hiện tại và load checkpoint thật đã được chép sẵn vào hệ thống.
+                </p>
+              </div>
+
+            </aside>
+
+            <div class="lab-stage">
+              <div class="stage-card">
+                <div class="stage-header">
+                  <div>
+                    <p class="stage-tag" id="stage-tag"></p>
+                    <h3 id="stage-title"></h3>
+                  </div>
+                  <div class="badge-row" id="stage-badges"></div>
+                </div>
+                <p class="stage-summary" id="stage-summary"></p>
+                <div class="result-gallery">
+                  <figure class="image-panel">
+                    <figcaption>Ảnh gốc</figcaption>
+                    <div class="image-frame" id="original-frame">
+                      <img id="original-image" alt="Original X-ray" />
+                    </div>
+                  </figure>
+                  <div class="result-items" id="result-gallery"></div>
+                </div>
+                <div class="case-notes" id="case-notes"></div>
+                <section class="uncertainty-panel hidden" id="uncertainty-panel">
+                  <div class="uncertainty-header">
+                    <div>
+                      <p class="section-tag">Post-hoc uncertainty</p>
+                      <h3>Đánh giá uncertainty hậu kiểm</h3>
+                    </div>
+                    <p class="muted-note" id="uncertainty-note"></p>
+                  </div>
+                  <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
+                  <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="experiments">
+          <div class="panel-heading">
+            <p class="section-tag">03. Experiments</p>
+            <h2>Dashboard kết quả thực nghiệm</h2>
+          </div>
+          <div class="results-grid">
+            <div class="result-card">
+              <h3>Tóm tắt lớp bằng chứng đang mở trên web</h3>
+              <div id="batch-summary" class="stack-list"></div>
+            </div>
+            <div class="result-card">
+              <h3>Binary refresh trên `57` ảnh positive-reference</h3>
+              <div id="binary-refresh-table"></div>
+            </div>
+            <div class="result-card">
+              <h3>Benchmark `balanced76`</h3>
+              <div id="balanced76-table"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="model-comparison">
+          <div class="panel-heading">
+            <p class="section-tag">04. Comparison</p>
+            <h2>So sánh cấu hình và đối chứng tối thiểu</h2>
+          </div>
+          <div class="comparison-grid">
+            <div class="result-card">
+              <h3>CE weight sweep</h3>
+              <div id="ce-chart" class="bar-chart"></div>
+            </div>
+            <div class="result-card">
+              <h3>U-Net vs SegFormer-B0</h3>
+              <div id="headtohead-table"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+services:
+  bone-tumor-segmentation-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: he_thong_phan_doan_u_xuong:local
+    container_name: he_thong_phan_doan_u_xuong
+    init: true
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4173"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - runtime_static_data:/app/runtime_static
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:4173/health', timeout=3); sys.exit(0)
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
+
+volumes:
+  runtime_static_data:
+    name: he_thong_phan_doan_u_xuong_runtime_static

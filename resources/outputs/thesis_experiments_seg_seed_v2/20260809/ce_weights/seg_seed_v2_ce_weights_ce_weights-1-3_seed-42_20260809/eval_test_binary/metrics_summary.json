@@ -1,0 +1,313 @@
+{
+  "primary_metric": "test_tumor_dice_mean_positive_reference",
+  "primary_value": 0.6506029765313467,
+  "secondary_metrics": {
+    "split": "test",
+    "num_cases": 60,
+    "num_patients": 9,
+    "per_class_summary": {
+      "tumor": {
+        "num_rows": 60,
+        "dice_mean": 0.6180728277047794,
+        "dice_std": 0.23690279542671824,
+        "iou_mean": 0.48350875265872073,
+        "iou_std": 0.21438420612853457,
+        "precision_mean": 0.5890776301641375,
+        "precision_std": 0.2679004439814512,
+        "recall_mean": 0.7322293956039218,
+        "recall_std": 0.24392990767346212,
+        "num_positive_reference_cases": 57,
+        "positive_reference_only": {
+          "num_rows": 57,
+          "dice_mean": 0.6506029765313467,
+          "dice_std": 0.19471148267196647,
+          "iou_mean": 0.5089565817460219,
+          "iou_std": 0.18822254391932391,
+          "precision_mean": 0.6200817159622499,
+          "precision_std": 0.23732463774798335,
+          "recall_mean": 0.7707677848462333,
+          "recall_std": 0.18146438941693271
+        }
+      }
+    },
+    "case_type_summary": {
+      "true_positive": {
+        "num_rows": 57,
+        "dice_mean": 0.6506029765313467,
+        "dice_std": 0.19471148267196647,
+        "iou_mean": 0.5089565817460219,
+        "iou_std": 0.18822254391932391,
+        "precision_mean": 0.6200817159622499,
+        "precision_std": 0.23732463774798335,
+        "recall_mean": 0.7707677848462333,
+        "recall_std": 0.18146438941693271
+      },
+      "false_positive": {
+        "num_rows": 3,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      }
+    },
+    "diagnosis_group_summary": {
+      "\u00c1c t\u00ednh": {
+        "num_rows": 36,
+        "dice_mean": 0.6122396179902433,
+        "dice_std": 0.23100608975147202,
+        "iou_mean": 0.47651419040905263,
+        "iou_std": 0.2150971998679222,
+        "precision_mean": 0.5816786700580416,
+        "precision_std": 0.2643591323982262,
+        "recall_mean": 0.7270248992334978,
+        "recall_std": 0.2324997505216292
+      },
+      "L\u00e0nh t\u00ednh": {
+        "num_rows": 2,
+        "dice_mean": 0.2442504258943782,
+        "dice_std": 0.2442504258943782,
+        "iou_mean": 0.1615948154409693,
+        "iou_std": 0.1615948154409693,
+        "precision_mean": 0.1625720495133705,
+        "precision_std": 0.1625720495133705,
+        "recall_mean": 0.49087018544935807,
+        "recall_std": 0.49087018544935807
+      },
+      "Nguy\u00ean b\u00e0o": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "Ch\u1ea5n Th\u01b0\u01a1ng": {
+        "num_rows": 21,
+        "dice_mean": 0.6931067887071072,
+        "dice_std": 0.16124587786285072,
+        "iou_mean": 0.5491821273293053,
+        "iou_std": 0.15529273925490067,
+        "precision_mean": 0.670432456606286,
+        "precision_std": 0.20536894260346775,
+        "recall_mean": 0.7990060472824129,
+        "recall_std": 0.13712958692055965
+      }
+    },
+    "bone_group_summary": {
+      "\u0110\u1ea1i b\u00e0o / X quay": {
+        "num_rows": 2,
+        "dice_mean": 0.404758192460795,
+        "dice_std": 0.39637947440465754,
+        "iou_mean": 0.33622762128287464,
+        "iou_std": 0.33202063769011064,
+        "precision_mean": 0.3761621722284302,
+        "precision_std": 0.37195297513277614,
+        "recall_mean": 0.8755691605499051,
+        "recall_std": 0.01331972833898376
+      },
+      "M\u1ea1ch m\u00e1u / C\u1eb3ng tay": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "Sarcoma / X \u0110\u00f9i": {
+        "num_rows": 13,
+        "dice_mean": 0.5002443402551242,
+        "dice_std": 0.18896637027675814,
+        "iou_mean": 0.35567007364853365,
+        "iou_std": 0.17620057865034103,
+        "precision_mean": 0.4518984707941148,
+        "precision_std": 0.2219231189125221,
+        "recall_mean": 0.6347098952461996,
+        "recall_std": 0.2549906423914219
+      },
+      "\u0110\u1ea1i b\u00e0o / X ch\u00e0y": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "S\u1ee5n / X Sen": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "B\u1ecdc ho\u1ea1t d\u1ecbch / C\u1ed5 tay": {
+        "num_rows": 1,
+        "dice_mean": 0.4885008517887564,
+        "dice_std": 0.0,
+        "iou_mean": 0.3231896308819386,
+        "iou_std": 0.0,
+        "precision_mean": 0.325144099026741,
+        "precision_std": 0.0,
+        "recall_mean": 0.9817403708987161,
+        "recall_std": 0.0
+      },
+      "G\u00e3y / X c\u1eb3ng ch\u00e2n": {
+        "num_rows": 1,
+        "dice_mean": 0.09429742825195676,
+        "dice_std": 0.0,
+        "iou_mean": 0.04948171327987483,
+        "iou_std": 0.0,
+        "precision_mean": 0.04965327750883161,
+        "precision_std": 0.0,
+        "recall_mean": 0.9347290640394089,
+        "recall_std": 0.0
+      },
+      "G\u00e3y / X c\u00e1nh tay": {
+        "num_rows": 20,
+        "dice_mean": 0.7230472567298647,
+        "dice_std": 0.09206074435008857,
+        "iou_mean": 0.5741671480317768,
+        "iou_std": 0.11050950257327899,
+        "precision_mean": 0.7014714155611588,
+        "precision_std": 0.15509179953279933,
+        "recall_mean": 0.7922198964445631,
+        "recall_std": 0.13703160614390555
+      },
+      "\u0110\u1ea1i b\u00e0o / X c\u00e1nh tay": {
+        "num_rows": 20,
+        "dice_mean": 0.7363966719705277,
+        "dice_std": 0.10255827332505646,
+        "iou_mean": 0.5929172327364605,
+        "iou_std": 0.12535161075049303,
+        "precision_mean": 0.7156713828654575,
+        "precision_std": 0.17292742710433448,
+        "recall_mean": 0.8085264706552756,
+        "recall_std": 0.11917846525056168
+      }
+    },
+    "diagnosis_label_summary": {
+      "['buou_dai_bao']": {
+        "num_rows": 3,
+        "dice_mean": 0.2698387949738633,
+        "dice_std": 0.37570060702996166,
+        "iou_mean": 0.22415174752191644,
+        "iou_std": 0.31402835146951774,
+        "precision_mean": 0.2507747814856201,
+        "precision_std": 0.3516769435926425,
+        "recall_mean": 0.5837127736999367,
+        "recall_std": 0.4128905155917078
+      },
+      "['buou_mach_mau']": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "['sarcoma_tao_xuong']": {
+        "num_rows": 14,
+        "dice_mean": 0.4712481322548979,
+        "dice_std": 0.2099710409471236,
+        "iou_mean": 0.33379947647934366,
+        "iou_std": 0.18720904294684385,
+        "precision_mean": 0.42316667127373747,
+        "precision_std": 0.23762098970416332,
+        "recall_mean": 0.6561398358742859,
+        "recall_std": 0.2575773211043783
+      },
+      "['buou_nguyen_bao_sun']": {
+        "num_rows": 1,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0
+      },
+      "['buou_phan_mem']": {
+        "num_rows": 1,
+        "dice_mean": 0.4885008517887564,
+        "dice_std": 0.0,
+        "iou_mean": 0.3231896308819386,
+        "iou_std": 0.0,
+        "precision_mean": 0.325144099026741,
+        "precision_std": 0.0,
+        "recall_mean": 0.9817403708987161,
+        "recall_std": 0.0
+      },
+      "['gay', 'buou_dai_bao', 'chan_doan_phan_biet', 'loan_san_soi', 'boc_xuong_phong_mau']": {
+        "num_rows": 40,
+        "dice_mean": 0.7297219643501963,
+        "dice_std": 0.09767928009906496,
+        "iou_mean": 0.5835421903841187,
+        "iou_std": 0.11853514102356542,
+        "precision_mean": 0.708571399213308,
+        "precision_std": 0.1644052627852413,
+        "recall_mean": 0.8003731835499194,
+        "recall_std": 0.12867423954137544
+      }
+    },
+    "tumor_reference_regime_summary": {
+      "positive_reference": {
+        "num_rows": 57,
+        "dice_mean": 0.6506029765313467,
+        "dice_std": 0.19471148267196647,
+        "iou_mean": 0.5089565817460219,
+        "iou_std": 0.18822254391932391,
+        "precision_mean": 0.6200817159622499,
+        "precision_std": 0.23732463774798335,
+        "recall_mean": 0.7707677848462333,
+        "recall_std": 0.18146438941693271,
+        "reference_positive_pixels_mean": 7471.087719298245,
+        "reference_positive_pixels_std": 3322.275188918253,
+        "pred_positive_pixels_mean": 9746.666666666666,
+        "pred_positive_pixels_std": 3641.9176283512934
+      },
+      "empty_reference": {
+        "num_rows": 3,
+        "dice_mean": 0.0,
+        "dice_std": 0.0,
+        "iou_mean": 0.0,
+        "iou_std": 0.0,
+        "precision_mean": 0.0,
+        "precision_std": 0.0,
+        "recall_mean": 0.0,
+        "recall_std": 0.0,
+        "reference_positive_pixels_mean": 0.0,
+        "reference_positive_pixels_std": 0.0,
+        "pred_positive_pixels_mean": 9535.0,
+        "pred_positive_pixels_std": 642.5485714455108
+      }
+    },
+    "mean_inference_seconds_per_batch": 0.10708123740041628,
+    "parameter_count": 3714658,
+    "model_type": "segformer",
+    "device": "cpu",
+    "surface_metrics_requested": false
+  },
+  "best_epoch": null,
+  "latest_epoch": null,
+  "status": "evaluated_test"
+}
