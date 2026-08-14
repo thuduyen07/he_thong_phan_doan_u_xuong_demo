@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+from typing import Any
+
 import numpy as np
 
 
@@ -107,3 +110,105 @@ def masked_fraction_below(values: np.ndarray, mask: np.ndarray, threshold: float
     if selected.size == 0:
         return None
     return float((selected < float(threshold)).mean())
+
+
+def conformal_prediction_sets(
+    probabilities: np.ndarray,
+    *,
+    lambda_threshold: float,
+    class_axis: int = 0,
+) -> np.ndarray:
+    probs = np.asarray(probabilities, dtype=np.float64)
+    probability_floor = 1.0 - float(lambda_threshold)
+    moved = np.moveaxis(probs, class_axis, 0)
+    included = moved >= probability_floor
+    return np.moveaxis(included, 0, class_axis)
+
+
+def conformal_quantile_threshold(scores: np.ndarray, alpha: float) -> float:
+    values = np.asarray(scores, dtype=np.float64).reshape(-1)
+    if values.size == 0:
+        raise ValueError("Conformal calibration scores are empty.")
+    ordered = np.sort(values)
+    safe_alpha = min(max(float(alpha), 1e-9), 1.0 - 1e-9)
+    rank = int(math.ceil((ordered.size + 1) * (1.0 - safe_alpha))) - 1
+    rank = min(max(rank, 0), ordered.size - 1)
+    return float(ordered[rank])
+
+
+def build_binary_conformal_region_maps(
+    probabilities: np.ndarray,
+    *,
+    lambda_threshold: float,
+    tumor_class_id: int = 1,
+    class_axis: int = 0,
+) -> dict[str, np.ndarray]:
+    prediction_sets = conformal_prediction_sets(
+        probabilities,
+        lambda_threshold=lambda_threshold,
+        class_axis=class_axis,
+    )
+    included = np.moveaxis(np.asarray(prediction_sets, dtype=bool), class_axis, 0)
+    if included.shape[0] < 2:
+        raise ValueError("Binary conformal regions require at least two classes.")
+
+    background_included = included[0]
+    tumor_included = included[int(tumor_class_id)]
+    set_size = included.sum(axis=0).astype(np.int64)
+
+    sure_tumor = np.logical_and(tumor_included, set_size == 1)
+    sure_background = np.logical_and(background_included, set_size == 1)
+    outer_tumor = tumor_included
+    uncertain = np.logical_not(np.logical_or(sure_tumor, sure_background))
+
+    return {
+        "set_size": set_size,
+        "sure_tumor": sure_tumor.astype(bool),
+        "sure_background": sure_background.astype(bool),
+        "uncertain": uncertain.astype(bool),
+        "outer_tumor": outer_tumor.astype(bool),
+    }
+
+
+def sanitize_float(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if np.isnan(value) or np.isinf(value):
+        return None
+    return float(value)
+
+
+def summarize_binary_conformal_regions(
+    region_maps: dict[str, np.ndarray],
+    *,
+    alpha: float,
+    lambda_threshold: float,
+    calibration_size: int | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    sure_tumor = np.asarray(region_maps["sure_tumor"], dtype=bool)
+    sure_background = np.asarray(region_maps["sure_background"], dtype=bool)
+    uncertain = np.asarray(region_maps["uncertain"], dtype=bool)
+    outer_tumor = np.asarray(region_maps["outer_tumor"], dtype=bool)
+    set_size = np.asarray(region_maps["set_size"], dtype=np.int64)
+    total_pixels = int(set_size.size)
+    safe_total = max(total_pixels, 1)
+
+    return {
+        "available": True,
+        "alpha": float(alpha),
+        "target_coverage": float(1.0 - float(alpha)),
+        "lambda_threshold": float(lambda_threshold),
+        "probability_floor": float(1.0 - float(lambda_threshold)),
+        "calibration_size": int(calibration_size) if calibration_size is not None else None,
+        "mean_set_size": sanitize_float(float(set_size.mean()) if total_pixels else None),
+        "max_set_size": int(set_size.max()) if total_pixels else None,
+        "sure_tumor_pixels": int(sure_tumor.sum()),
+        "outer_tumor_pixels": int(outer_tumor.sum()),
+        "sure_background_pixels": int(sure_background.sum()),
+        "uncertain_pixels": int(uncertain.sum()),
+        "uncertain_fraction": sanitize_float(float(uncertain.sum()) / safe_total),
+        "sure_tumor_fraction": sanitize_float(float(sure_tumor.sum()) / safe_total),
+        "sure_background_fraction": sanitize_float(float(sure_background.sum()) / safe_total),
+        "metadata": dict(metadata or {}),
+    }

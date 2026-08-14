@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 
 import cv2
@@ -17,8 +18,12 @@ ensure_runtime_paths()
 
 from runtime_src.common.io_utils import load_yaml  # noqa: E402
 from runtime_src.common.uncertainty import (  # noqa: E402
+    build_binary_conformal_region_maps,
     binary_boundary_band,
     binary_probabilities_from_logits,
+    sanitize_float,
+    summarize_binary_conformal_regions,
+    conformal_quantile_threshold,
     masked_fraction_below,
     masked_mean,
     masked_percentile,
@@ -45,6 +50,7 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         self.img_size = int(self.cfg["img_size"])
         self.num_classes = int(self.cfg["num_classes"])
         self.model_type = get_model_type(self.cfg)
+        self._conformal_profile = self._load_conformal_profile()
         self._model = None
         self._model_lock = threading.Lock()
 
@@ -239,13 +245,26 @@ class TorchSegmentationPredictor(SegmentationPredictor):
     def _tumor_class_id(self) -> int:
         return 1 if self.num_classes <= 2 else self.num_classes - 1
 
-    @staticmethod
-    def _sanitize_float(value: float | None) -> float | None:
-        if value is None:
-            return None
-        if np.isnan(value) or np.isinf(value):
-            return None
-        return float(value)
+    def _conformal_candidate_paths(self) -> list[Path]:
+        return [
+            RESOURCES_DIR / "conformal" / f"{self.spec.model_id}.json",
+            self.spec.checkpoint_path.parent / "conformal_calibration.json",
+            self.spec.checkpoint_path.parent / "conformal" / "conformal_calibration.json",
+        ]
+
+    def _load_conformal_profile(self) -> dict[str, object] | None:
+        for candidate in self._conformal_candidate_paths():
+            if not candidate.exists():
+                continue
+            try:
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            payload["artifact_path"] = str(candidate)
+            return payload
+        return None
 
     def _compute_uncertainty_outputs(
         self,
@@ -269,21 +288,21 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             "tumor_class_id": int(tumor_class_id),
             "predicted_tumor_pixels": int(pred_tumor.sum()),
             "predicted_tumor_present": bool(pred_tumor.any()),
-            "mean_predictive_entropy_pred_tumor": self._sanitize_float(masked_mean(entropy_map, pred_tumor)),
-            "p90_predictive_entropy_pred_tumor": self._sanitize_float(
+            "mean_predictive_entropy_pred_tumor": sanitize_float(masked_mean(entropy_map, pred_tumor)),
+            "p90_predictive_entropy_pred_tumor": sanitize_float(
                 masked_percentile(entropy_map, pred_tumor, 90.0)
             ),
-            "mean_predictive_entropy_boundary_tumor": self._sanitize_float(
+            "mean_predictive_entropy_boundary_tumor": sanitize_float(
                 masked_mean(entropy_map, boundary_mask)
             ),
-            "mean_one_minus_msp_pred_tumor": self._sanitize_float(masked_mean(one_minus_msp_map, pred_tumor)),
-            "mean_one_minus_margin_pred_tumor": self._sanitize_float(
+            "mean_one_minus_msp_pred_tumor": sanitize_float(masked_mean(one_minus_msp_map, pred_tumor)),
+            "mean_one_minus_margin_pred_tumor": sanitize_float(
                 masked_mean(one_minus_margin_map, pred_tumor)
             ),
-            "low_tumor_probability_fraction_pred_tumor": self._sanitize_float(
+            "low_tumor_probability_fraction_pred_tumor": sanitize_float(
                 masked_fraction_below(tumor_probability_map, pred_tumor, confidence_threshold)
             ),
-            "mean_tumor_probability_pred_tumor": self._sanitize_float(masked_mean(tumor_probability_map, pred_tumor)),
+            "mean_tumor_probability_pred_tumor": sanitize_float(masked_mean(tumor_probability_map, pred_tumor)),
         }
         maps = {
             "predictive_entropy": entropy_map.astype(np.float32),
@@ -292,7 +311,73 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         }
         return summary, maps
 
-    def _predict_mask(self, processed: np.ndarray) -> tuple[np.ndarray, dict[str, float | int | bool | None], dict[str, np.ndarray]]:
+    def _compute_conformal_outputs(
+        self,
+        *,
+        probs: np.ndarray,
+    ) -> tuple[dict[str, object] | None, dict[str, np.ndarray]]:
+        profile = self._conformal_profile
+        if not profile:
+            return None, {}
+
+        tumor_class_id = self._tumor_class_id()
+        alpha = float(profile.get("alpha", 0.1))
+        lambda_threshold = profile.get("lambda_threshold")
+        if lambda_threshold is None:
+            probability_floor = profile.get("probability_floor")
+            if probability_floor is not None:
+                lambda_threshold = 1.0 - float(probability_floor)
+        if lambda_threshold is None:
+            calibration_scores = profile.get("calibration_scores")
+            if calibration_scores:
+                lambda_threshold = conformal_quantile_threshold(
+                    np.asarray(calibration_scores, dtype=np.float64),
+                    alpha=alpha,
+                )
+        if lambda_threshold is None:
+            return {
+                "available": False,
+                "reason": "missing_lambda_threshold",
+                "artifact_path": str(profile.get("artifact_path", "")),
+            }, {}
+
+        region_maps = build_binary_conformal_region_maps(
+            probs,
+            lambda_threshold=float(lambda_threshold),
+            tumor_class_id=tumor_class_id,
+            class_axis=0,
+        )
+        summary = summarize_binary_conformal_regions(
+            region_maps,
+            alpha=alpha,
+            lambda_threshold=float(lambda_threshold),
+            calibration_size=profile.get("calibration_size"),
+            metadata={
+                "method": profile.get("method", "split_conformal_prediction_sets"),
+                "score_name": profile.get("score_name", "one_minus_true_class_probability"),
+                "source_split": profile.get("source_split", "val"),
+                "artifact_path": profile.get("artifact_path", ""),
+                "empirical_coverage": profile.get("empirical_coverage"),
+                "coverage_scope": profile.get("coverage_scope", "pixelwise"),
+            },
+        )
+        maps = {
+            "conformal_confident_tumor": region_maps["sure_tumor"].astype(np.float32),
+            "conformal_outer_tumor": region_maps["outer_tumor"].astype(np.float32),
+            "conformal_uncertain": region_maps["uncertain"].astype(np.float32),
+        }
+        return summary, maps
+
+    def _predict_mask(
+        self,
+        processed: np.ndarray,
+    ) -> tuple[
+        np.ndarray,
+        dict[str, float | int | bool | None],
+        dict[str, np.ndarray],
+        dict[str, object] | None,
+        dict[str, np.ndarray],
+    ]:
         resized = cv2.resize(processed, (self.img_size, self.img_size), interpolation=cv2.INTER_LINEAR)
         arr = resized.astype(np.float32) / 255.0
         x = torch.from_numpy(arr).unsqueeze(0).repeat(3, 1, 1).unsqueeze(0).to(self.device)
@@ -313,7 +398,8 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                 probs = softmax_probabilities(logits_np, class_axis=0)
                 pred = np.argmax(probs, axis=0).astype(np.uint8)
         uncertainty_summary, uncertainty_maps = self._compute_uncertainty_outputs(probs=probs, pred_mask=pred)
-        return pred, uncertainty_summary, uncertainty_maps
+        conformal_summary, conformal_maps = self._compute_conformal_outputs(probs=probs)
+        return pred, uncertainty_summary, uncertainty_maps, conformal_summary, conformal_maps
 
     def _class_labels(self) -> dict[str, str]:
         if self.num_classes <= 1:
@@ -333,7 +419,7 @@ class TorchSegmentationPredictor(SegmentationPredictor):
 
     def predict(self, image: Image.Image) -> PredictionArtifacts:
         original_gray, processed, prep_metadata = self._prepare_image(image)
-        pred_mask, uncertainty_summary, uncertainty_maps = self._predict_mask(processed)
+        pred_mask, uncertainty_summary, uncertainty_maps, conformal_summary, conformal_maps = self._predict_mask(processed)
 
         original_rgb = cv2.cvtColor(original_gray, cv2.COLOR_GRAY2RGB)
         color_mask = self._colorize_mask(pred_mask)
@@ -345,6 +431,11 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             "class_labels": self._class_labels(),
             "model_type": self.model_type,
             "uncertainty_summary": uncertainty_summary,
+            "conformal_summary": conformal_summary,
+        }
+        auxiliary_maps = {
+            **uncertainty_maps,
+            **conformal_maps,
         }
         return PredictionArtifacts(
             mask=pred_mask,
@@ -354,5 +445,5 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             checkpoint_path=self.spec.checkpoint_path,
             note=self.spec.note,
             extra_metadata=extra_metadata,
-            auxiliary_maps=uncertainty_maps,
+            auxiliary_maps=auxiliary_maps,
         )

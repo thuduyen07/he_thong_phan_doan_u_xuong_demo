@@ -1,0 +1,21 @@
+{
+  "method": "split_conformal_prediction_sets",
+  "score_name": "one_minus_true_class_probability",
+  "coverage_scope": "pixelwise",
+  "alpha": 0.1,
+  "target_coverage": 0.9,
+  "lambda_threshold": 0.5300835371017456,
+  "probability_floor": 0.4699164628982544,
+  "calibration_size": 3161088,
+  "case_count": 63,
+  "source_split": "val",
+  "images_dir": "/Users/duyennguyen/Downloads/Master-Thesis/datasets/BV_ChinhHinh_Data/changed_name_images",
+  "masks_dir": "/Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs/seg_seed_v2_data/masks",
+  "split_dir": "/Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/splits_seed_v2",
+  "model_id": "thesis_20260809_baseline_seg_seed_v2_baseline_seed_42_20260809",
+  "checkpoint_path": "/Users/duyennguyen/Downloads/he_thong_phan_doan_u_xuong/resources/outputs/thesis_experiments_seg_seed_v2/20260809/baseline/seg_seed_v2_baseline_seed-42_20260809/seg_best.pt",
+  "config_path": "/Users/duyennguyen/Downloads/he_thong_phan_doan_u_xuong/resources/outputs/thesis_experiments_seg_seed_v2/20260809/baseline/seg_seed_v2_baseline_seed-42_20260809/config_snapshot.yaml",
+  "generated_date": "2026-08-13",
+  "empirical_coverage": 0.9000005694241983,
+  "notes": "This artifact calibrates pixelwise true-class nonconformity scores on the local split. The resulting coverage interpretation should stay scoped to the exchangeability assumption between this calibration split and the live demo inputs."
+}

@@ -65,6 +65,60 @@
       note: "Xác suất tumor hậu kiểm theo từng pixel.",
     },
   ];
+  const conformalScoreConfig = [
+    {
+      key: "target_coverage",
+      label: "Target coverage",
+      note: "Mức coverage mục tiêu 1 - alpha của conformal prediction set.",
+    },
+    {
+      key: "probability_floor",
+      label: "Probability floor",
+      note: "Pixel chỉ được đưa vào prediction set nếu xác suất lớp đạt tối thiểu ngưỡng này.",
+    },
+    {
+      key: "mean_set_size",
+      label: "Mean set size",
+      note: "Kích thước trung bình của prediction set theo pixel. Gần 1 hơn thì quyết định gọn hơn.",
+    },
+    {
+      key: "sure_tumor_pixels",
+      label: "Sure tumor pixels",
+      note: "Số pixel gần như chắc chắn thuộc tumor theo conformal prediction set.",
+    },
+    {
+      key: "outer_tumor_pixels",
+      label: "Outer tumor pixels",
+      note: "Số pixel còn được phép thuộc tumor trong outer mask conformal.",
+    },
+    {
+      key: "uncertain_pixels",
+      label: "Uncertain pixels",
+      note: "Số pixel rơi vào vùng undecided giữa tumor và background.",
+    },
+    {
+      key: "uncertain_fraction",
+      label: "Uncertain fraction",
+      note: "Tỉ lệ pixel undecided trên toàn ảnh sau conformalization.",
+    },
+  ];
+  const conformalHeatmapConfig = [
+    {
+      key: "conformal_confident_tumor",
+      label: "Conformal sure-tumor map",
+      note: "Vùng nóng là phần inner mask gần như chắc chắn là tumor.",
+    },
+    {
+      key: "conformal_outer_tumor",
+      label: "Conformal outer-tumor map",
+      note: "Vùng nóng là mọi pixel còn nằm trong outer mask có thể là tumor.",
+    },
+    {
+      key: "conformal_uncertain",
+      label: "Conformal uncertain map",
+      note: "Vùng nóng là dải undecided cần thận trọng khi diễn giải.",
+    },
+  ];
 
   function $(selector) {
     return document.querySelector(selector);
@@ -240,9 +294,11 @@
 
   function renderUncertaintyPanel() {
     const panel = $("#uncertainty-panel");
+    const conformalSection = $("#conformal-section");
     const toggleButton = $("#toggle-uncertainty");
     const result = state.liveResult;
     const uncertainty = result?.uncertainty;
+    const conformal = uncertainty?.conformal;
     const available = Boolean(uncertainty?.available);
 
     toggleButton.disabled = !available;
@@ -250,6 +306,7 @@
 
     if (state.mode !== "live" || !state.showUncertainty || !available) {
       panel.classList.add("hidden");
+      conformalSection.classList.add("hidden");
       return;
     }
 
@@ -281,6 +338,42 @@
         `
       )
       .join("");
+
+    if (conformal?.available) {
+      $("#conformal-note").textContent = conformal.note || "";
+      $("#conformal-score-grid").innerHTML = conformalScoreConfig
+        .map((item) => {
+          const value = conformal.summary?.[item.key];
+          return `
+            <article class="uncertainty-score-card">
+              <h4>${item.label}</h4>
+              <p class="uncertainty-score-value">${formatMetricValue(value)}</p>
+              <p class="uncertainty-score-note">${item.note}</p>
+            </article>
+          `;
+        })
+        .join("");
+      $("#conformal-heatmaps").innerHTML = conformalHeatmapConfig
+        .filter((item) => conformal.heatmaps?.[item.key])
+        .map(
+          (item) => `
+            <figure class="image-panel">
+              <figcaption>${item.label}</figcaption>
+              <div class="image-frame">
+                <img src="${conformal.heatmaps[item.key]}" alt="${item.label}" />
+              </div>
+              <p class="muted-note">${item.note}</p>
+            </figure>
+          `
+        )
+        .join("");
+      conformalSection.classList.remove("hidden");
+    } else {
+      $("#conformal-note").textContent = conformal?.note || "";
+      $("#conformal-score-grid").innerHTML = "";
+      $("#conformal-heatmaps").innerHTML = "";
+      conformalSection.classList.add("hidden");
+    }
 
     panel.classList.remove("hidden");
   }

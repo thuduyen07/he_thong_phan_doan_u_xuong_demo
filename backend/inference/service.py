@@ -246,21 +246,30 @@ def _save_heatmap_overlay(path: Path, original_rgb: np.ndarray, values: np.ndarr
 
 def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
     summary = dict(artifacts.extra_metadata.get("uncertainty_summary") or {})
+    conformal_summary = dict(artifacts.extra_metadata.get("conformal_summary") or {})
     auxiliary_maps = artifacts.auxiliary_maps or {}
     if not summary or not auxiliary_maps:
         return {
             "available": False,
             "summary": {},
             "heatmaps": {},
+            "conformal": {
+                "available": False,
+                "summary": {},
+                "heatmaps": {},
+                "note": "Chưa có conformal output cho ảnh này.",
+            },
             "note": "Backend live hiện chưa sinh được uncertainty hậu kiểm cho ảnh này.",
         }
 
     heatmap_urls: dict[str, str] = {}
+    conformal_heatmap_urls: dict[str, str] = {}
     for map_name, map_values in auxiliary_maps.items():
         heatmap_name = f"{result_id}_{map_name}_heatmap.png"
         heatmap_path = RESULT_DIR / heatmap_name
         _save_heatmap_overlay(heatmap_path, artifacts.original, map_values)
-        heatmap_urls[map_name] = f"/runtime_static/results/{heatmap_name}"
+        target = conformal_heatmap_urls if map_name.startswith("conformal_") else heatmap_urls
+        target[map_name] = f"/runtime_static/results/{heatmap_name}"
 
     predicted_tumor_present = bool(summary.get("predicted_tumor_present"))
     if predicted_tumor_present:
@@ -273,10 +282,31 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
             "Ảnh này không có vùng tumor dự đoán, nên một số score theo vùng tumor sẽ để trống."
         )
 
+    conformal_available = bool(conformal_summary.get("available"))
+    if conformal_available:
+        conformal_note = (
+            "Prediction set conformal được dựng hậu kiểm từ artifact calibration đã lưu sẵn. "
+            "Coverage guarantee chỉ có ý nghĩa khi giả định exchangeability giữa tập calibration và dữ liệu demo là phù hợp."
+        )
+    elif conformal_summary:
+        conformal_note = (
+            "Checkpoint này đã có hồ sơ conformal nhưng artifact calibration chưa đủ để dựng prediction set."
+        )
+    else:
+        conformal_note = (
+            "Checkpoint này hiện chưa có artifact conformal calibration đi kèm, nên web chỉ hiển thị uncertainty thường."
+        )
+
     return {
         "available": True,
         "summary": summary,
         "heatmaps": heatmap_urls,
+        "conformal": {
+            "available": conformal_available,
+            "summary": conformal_summary,
+            "heatmaps": conformal_heatmap_urls,
+            "note": conformal_note,
+        },
         "note": note,
     }
 

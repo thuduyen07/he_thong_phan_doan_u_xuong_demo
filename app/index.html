@@ -134,8 +134,22 @@
                     </div>
                     <p class="muted-note" id="uncertainty-note"></p>
                   </div>
-                  <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
-                  <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
+                  <div class="uncertainty-section">
+                    <h4>Softmax-derived uncertainty</h4>
+                    <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
+                    <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
+                  </div>
+                  <div class="uncertainty-section hidden" id="conformal-section">
+                    <div class="uncertainty-subheader">
+                      <div>
+                        <p class="section-tag">Conformal prediction</p>
+                        <h4>Prediction set cho segmentation</h4>
+                      </div>
+                      <p class="muted-note" id="conformal-note"></p>
+                    </div>
+                    <div class="uncertainty-score-grid" id="conformal-score-grid"></div>
+                    <div class="uncertainty-heatmaps" id="conformal-heatmaps"></div>
+                  </div>
                 </section>
               </div>
             </div>
