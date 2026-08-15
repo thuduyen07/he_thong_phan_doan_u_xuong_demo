@@ -5,6 +5,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+from backend.dashboard import get_dashboard_payload
 from backend.inference.service import (
     APP_DIR,
     RUNTIME_STATIC_DIR,
@@ -37,6 +38,11 @@ def health():
 @app.get("/models")
 def models():
     return jsonify(available_models())
+
+
+@app.get("/dashboard")
+def dashboard():
+    return jsonify(get_dashboard_payload())
 
 
 @app.get("/get_images")

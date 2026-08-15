@@ -1,206 +1,222 @@
 (function () {
-  const data = window.THESIS_APP_DATA;
-
   const state = {
-    mode: "curated",
-    selectedCaseId: data.curatedCases[0].id,
+    dashboard: null,
     models: [],
-    selectedModelId: data.liveInference.defaultModelId,
+    images: { custom: [], default: [] },
+    selectedImageId: null,
+    selectedModelId: null,
     liveResult: null,
-    showUncertainty: false,
   };
 
-  const caseMap = new Map(data.curatedCases.map((item) => [item.id, item]));
   const uncertaintyScoreConfig = [
-    {
-      key: "mean_predictive_entropy_pred_tumor",
-      label: "Mean entropy",
-      note: "Entropy trung bình trong vùng tumor dự đoán. Thông số này càng nhỏ thì vùng dự đoán càng chắc chắn.",
-    },
-    {
-      key: "p90_predictive_entropy_pred_tumor",
-      label: "P90 entropy",
-      note: "Ngưỡng 90% của entropy trong vùng tumor dự đoán. Thông số này càng nhỏ thì các điểm bất định cao trong vùng tumor càng ít.",
-    },
-    {
-      key: "mean_predictive_entropy_boundary_tumor",
-      label: "Boundary entropy",
-      note: "Entropy trung bình trên dải biên của tumor dự đoán. Thông số này càng nhỏ thì biên tumor dự đoán càng rõ và ổn định.",
-    },
-    {
-      key: "mean_one_minus_msp_pred_tumor",
-      label: "1 - MSP",
-      note: "Mức bất định từ xác suất lớp cao nhất. Thông số này càng nhỏ thì mô hình càng tự tin vào lớp dự đoán chính.",
-    },
-    {
-      key: "mean_one_minus_margin_pred_tumor",
-      label: "1 - Margin",
-      note: "Mức sát nhau giữa hai lớp top trong vùng dự đoán. Thông số này càng nhỏ thì khoảng cách giữa hai lớp top càng lớn và quyết định càng chắc chắn.",
-    },
-    {
-      key: "low_tumor_probability_fraction_pred_tumor",
-      label: "Low prob fraction",
-      note: "Tỉ lệ pixel tumor dự đoán có xác suất dưới ngưỡng. Thông số này càng nhỏ thì càng ít pixel tumor bị xem là thiếu chắc chắn.",
-    },
-    {
-      key: "mean_tumor_probability_pred_tumor",
-      label: "Mean tumor prob",
-      note: "Xác suất tumor trung bình trong vùng tumor dự đoán. Thông số này càng lớn thì mô hình càng tin rằng vùng dự đoán thực sự là tumor.",
-    },
+    ["mean_predictive_entropy_pred_tumor", "Mean entropy"],
+    ["p90_predictive_entropy_pred_tumor", "P90 entropy"],
+    ["mean_predictive_entropy_boundary_tumor", "Boundary entropy"],
+    ["mean_one_minus_msp_pred_tumor", "1 - MSP"],
+    ["mean_one_minus_margin_pred_tumor", "1 - Margin"],
+    ["low_tumor_probability_fraction_pred_tumor", "Low prob fraction"],
+    ["mean_tumor_probability_pred_tumor", "Mean tumor prob"],
   ];
-  const uncertaintyHeatmapConfig = [
-    {
-      key: "predictive_entropy",
-      label: "Predictive entropy heatmap",
-      note: "Vùng nóng hơn là nơi mô hình phân vân hơn theo entropy.",
-    },
-    {
-      key: "one_minus_msp",
-      label: "1 - MSP heatmap",
-      note: "Vùng nóng hơn là nơi confidence top-class thấp hơn.",
-    },
-    {
-      key: "tumor_probability",
-      label: "Tumor probability heatmap",
-      note: "Xác suất tumor hậu kiểm theo từng pixel.",
-    },
-  ];
+
   const conformalScoreConfig = [
-    {
-      key: "target_coverage",
-      label: "Target coverage",
-      note: "Mức coverage mục tiêu 1 - alpha của conformal prediction set.",
-    },
-    {
-      key: "probability_floor",
-      label: "Probability floor",
-      note: "Pixel chỉ được đưa vào prediction set nếu xác suất lớp đạt tối thiểu ngưỡng này.",
-    },
-    {
-      key: "mean_set_size",
-      label: "Mean set size",
-      note: "Kích thước trung bình của prediction set theo pixel. Gần 1 hơn thì quyết định gọn hơn.",
-    },
-    {
-      key: "sure_tumor_pixels",
-      label: "Sure tumor pixels",
-      note: "Số pixel gần như chắc chắn thuộc tumor theo conformal prediction set.",
-    },
-    {
-      key: "outer_tumor_pixels",
-      label: "Outer tumor pixels",
-      note: "Số pixel còn được phép thuộc tumor trong outer mask conformal.",
-    },
-    {
-      key: "uncertain_pixels",
-      label: "Uncertain pixels",
-      note: "Số pixel rơi vào vùng undecided giữa tumor và background.",
-    },
-    {
-      key: "uncertain_fraction",
-      label: "Uncertain fraction",
-      note: "Tỉ lệ pixel undecided trên toàn ảnh sau conformalization.",
-    },
-  ];
-  const conformalHeatmapConfig = [
-    {
-      key: "conformal_confident_tumor",
-      label: "Conformal sure-tumor map",
-      note: "Vùng nóng là phần inner mask gần như chắc chắn là tumor.",
-    },
-    {
-      key: "conformal_outer_tumor",
-      label: "Conformal outer-tumor map",
-      note: "Vùng nóng là mọi pixel còn nằm trong outer mask có thể là tumor.",
-    },
-    {
-      key: "conformal_uncertain",
-      label: "Conformal uncertain map",
-      note: "Vùng nóng là dải undecided cần thận trọng khi diễn giải.",
-    },
+    ["target_coverage", "Target coverage"],
+    ["probability_floor", "Probability floor"],
+    ["mean_set_size", "Mean set size"],
+    ["sure_tumor_pixels", "Sure tumor pixels"],
+    ["outer_tumor_pixels", "Outer tumor pixels"],
+    ["uncertain_pixels", "Uncertain pixels"],
+    ["uncertain_fraction", "Uncertain fraction"],
   ];
 
   function $(selector) {
     return document.querySelector(selector);
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
   function formatNumber(value, digits = 4) {
-    return Number(value).toFixed(digits);
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed.toFixed(digits) : "N/A";
   }
 
   function formatMetricValue(value) {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    if (value === null || value === undefined || value === "") {
       return "N/A";
     }
-    if (typeof value === "boolean") {
-      return value ? "Yes" : "No";
+    if (typeof value === "number") {
+      if (Number.isInteger(value)) {
+        return `${value}`;
+      }
+      return formatNumber(value);
     }
-    if (Number.isInteger(Number(value))) {
-      return `${Number(value)}`;
-    }
-    return formatNumber(value);
-  }
-
-  function renderStackList(containerId, values) {
-    const target = document.getElementById(containerId);
-    target.innerHTML = values.map((value) => `<p>${value}</p>`).join("");
+    return String(value);
   }
 
   function renderHeroMetrics() {
-    $("#hero-metrics").innerHTML = data.heroMetrics
+    const metrics = state.dashboard.hero_metrics || [];
+    $("#hero-metrics").innerHTML = metrics
       .map(
         (item) => `
           <article class="metric-card">
-            <p class="metric-value">${item.value}</p>
-            <p class="metric-label">${item.label}</p>
-            <p class="metric-note">${item.note}</p>
+            <p class="metric-value">${escapeHtml(item.value)}</p>
+            <p class="metric-label">${escapeHtml(item.label)}</p>
+            <p class="metric-note">${escapeHtml(item.note)}</p>
           </article>
         `
       )
+      .join("");
+  }
+
+  function renderStackList(containerId, items) {
+    document.getElementById(containerId).innerHTML = items
+      .map((item) => `<p>${escapeHtml(item)}</p>`)
       .join("");
   }
 
   function renderPipeline() {
-    $("#pipeline-strip").innerHTML = data.pipeline
+    const pipeline = state.dashboard.pipeline || {};
+
+    $("#pipeline-strip").innerHTML = (pipeline.modules || [])
+      .map(
+        (item, index) => `
+          <article class="pipeline-card">
+            <div class="pipeline-step">${index + 1}</div>
+            <h3>${escapeHtml(item.title)}</h3>
+            <p>${escapeHtml(item.summary)}</p>
+            <div class="card-list">
+              ${(item.details || []).map((detail) => `<span>${escapeHtml(detail)}</span>`).join("")}
+            </div>
+          </article>
+        `
+      )
+      .join("");
+
+    $("#schedule-grid").innerHTML = (pipeline.schedule || [])
       .map(
         (item) => `
-          <article class="pipeline-card">
-            <div class="pipeline-step">${item.step}</div>
-            <h3>${item.title}</h3>
-            <p>${item.detail}</p>
+          <article class="schedule-card">
+            <p class="mini-tag">${escapeHtml(item.epoch_range)}</p>
+            <h3>${escapeHtml(item.phase)}</h3>
+            <p>${escapeHtml(item.purpose)}</p>
+            <div class="badge-row">
+              ${(item.signals || []).map((signal) => `<span class="pill">${escapeHtml(signal)}</span>`).join("")}
+            </div>
+          </article>
+        `
+      )
+      .join("");
+
+    $("#formula-list").innerHTML = (pipeline.formulas || [])
+      .map(
+        (item) => `
+          <article class="formula-card">
+            <p class="formula-label">${escapeHtml(item.label)}</p>
+            <code>${escapeHtml(item.value)}</code>
           </article>
         `
       )
       .join("");
   }
 
-  function renderCases() {
-    $("#case-list").innerHTML = data.curatedCases
+  function buildTable(columns, rows) {
+    if (!rows.length) {
+      return '<p class="muted-note">Chưa có dữ liệu.</p>';
+    }
+
+    const header = columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
+    const body = rows
       .map(
-        (item) => `
-          <button type="button" class="case-button ${
-            item.id === state.selectedCaseId ? "active" : ""
-          }" data-case-id="${item.id}">
-            <span class="case-button-tag">${item.tag}</span>
-            <strong>${item.title}</strong>
-            <span>${item.id.replace(/_(TP|TN|FP|FN)$/, "")}</span>
-          </button>
+        (row) => `
+          <tr>
+            ${columns
+              .map((column) => `<td>${escapeHtml(column.render ? column.render(row) : row[column.key])}</td>`)
+              .join("")}
+          </tr>
         `
       )
       .join("");
 
-    document.querySelectorAll("[data-case-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        state.selectedCaseId = button.dataset.caseId;
-        state.liveResult = null;
-        renderCases();
-        renderStage();
-      });
-    });
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>${header}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `;
   }
 
-  function renderBadges(items) {
-    return items.map((item) => `<span class="pill">${item}</span>`).join("");
+  function renderExperimentTables() {
+    const experiments = state.dashboard.experiments || {};
+    const runColumns = [
+      { label: "Run", key: "display_name" },
+      { label: "Phase", key: "phase" },
+      { label: "Mode", key: "training_mode" },
+      { label: "Primary", render: (row) => `${row.primary_metric || "metric"}: ${formatMetricValue(row.primary_value)}` },
+      { label: "Test Dice", render: (row) => formatMetricValue(row.test_dice) },
+      { label: "Test IoU", render: (row) => formatMetricValue(row.test_iou) },
+      { label: "Conformal", render: (row) => (row.conformal?.available ? `yes (${formatMetricValue(row.conformal.target_coverage)})` : "no") },
+    ];
+
+    const compactColumns = [
+      { label: "Run", key: "display_name" },
+      { label: "Dice", render: (row) => formatMetricValue(row.test_dice) },
+      { label: "Precision", render: (row) => formatMetricValue(row.test_precision) },
+      { label: "Recall", render: (row) => formatMetricValue(row.test_recall) },
+      { label: "Primary", render: (row) => formatMetricValue(row.primary_value) },
+    ];
+
+    $("#runs-table").innerHTML = buildTable(runColumns, experiments.runs || []);
+    $("#binary-refresh-table").innerHTML = buildTable(compactColumns, experiments.binary_refresh || []);
+    $("#balanced76-table").innerHTML = buildTable(compactColumns, experiments.balanced76 || []);
+  }
+
+  function flattenImages() {
+    return [...(state.images.default || []), ...(state.images.custom || [])];
+  }
+
+  function renderImageOptions() {
+    const allImages = flattenImages();
+    const select = $("#image-select");
+
+    if (!state.selectedImageId && allImages.length) {
+      state.selectedImageId = allImages[0].id;
+    }
+
+    select.innerHTML = allImages
+      .map((item) => {
+        const label = item.source === "custom" ? `[upload] ${item.filename}` : `[sample] ${item.filename}`;
+        const selected = item.id === state.selectedImageId ? "selected" : "";
+        return `<option value="${escapeHtml(item.id)}" ${selected}>${escapeHtml(label)}</option>`;
+      })
+      .join("");
+
+    if (state.selectedImageId) {
+      const image = allImages.find((item) => item.id === state.selectedImageId);
+      if (image) {
+        $("#original-image").src = image.image_url;
+      }
+    }
+  }
+
+  function renderModelOptions() {
+    const select = $("#model-select");
+    if (!state.selectedModelId && state.models.length) {
+      state.selectedModelId = state.models[0].model_id;
+    }
+    select.innerHTML = state.models
+      .map((model) => {
+        const selected = model.model_id === state.selectedModelId ? "selected" : "";
+        return `<option value="${escapeHtml(model.model_id)}" ${selected}>${escapeHtml(model.display_name)}</option>`;
+      })
+      .join("");
   }
 
   function renderResultGallery(items) {
@@ -208,9 +224,9 @@
       .map(
         (item) => `
           <figure class="image-panel">
-            <figcaption>${item.label}</figcaption>
+            <figcaption>${escapeHtml(item.label)}</figcaption>
             <div class="image-frame ${item.emphasized ? "result-frame" : ""}">
-              <img src="${item.src}" alt="${item.alt}" />
+              <img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt)}" />
             </div>
           </figure>
         `
@@ -218,425 +234,230 @@
       .join("");
   }
 
-  function renderCuratedStage() {
-    const selected = caseMap.get(state.selectedCaseId);
-    $("#stage-tag").textContent = selected.tag;
-    $("#stage-title").textContent = selected.title;
-    $("#stage-summary").textContent = selected.summary;
-    $("#stage-badges").innerHTML = renderBadges(selected.badges);
-    $("#original-image").src = selected.original;
+  function renderScoreGrid(containerId, summary, config) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = config
+      .map(([key, label]) => `
+        <article class="score-card">
+          <p class="metric-label">${escapeHtml(label)}</p>
+          <p class="metric-value small">${escapeHtml(formatMetricValue(summary?.[key]))}</p>
+        </article>
+      `)
+      .join("");
+  }
+
+  function renderHeatmaps(containerId, maps) {
+    const entries = Object.entries(maps || {});
+    const container = document.getElementById(containerId);
+    if (!entries.length) {
+      container.innerHTML = '<p class="muted-note">Không có heatmap cho kết quả này.</p>';
+      return;
+    }
+
+    container.innerHTML = entries
+      .map(
+        ([key, value]) => `
+          <figure class="image-panel compact">
+            <figcaption>${escapeHtml(key)}</figcaption>
+            <div class="image-frame result-frame">
+              <img src="${escapeHtml(value)}" alt="${escapeHtml(key)}" />
+            </div>
+          </figure>
+        `
+      )
+      .join("");
+  }
+
+  function renderLiveResult() {
+    const result = state.liveResult;
+    if (!result) {
+      return;
+    }
+
+    $("#stage-title").textContent = result.display_name || result.model_id;
+    $("#stage-summary").textContent = result.note || "Kết quả inference từ backend cục bộ.";
+    $("#original-image").src = result.original_image_url;
+    $("#stage-badges").innerHTML = [
+      result.metadata?.model_type,
+      result.checkpoint_name,
+      `foreground:${result.metadata?.foreground_pixels ?? 0}`,
+      result.uncertainty?.conformal?.available ? "conformal-ready" : "uncertainty-only",
+    ]
+      .filter(Boolean)
+      .map((item) => `<span class="pill">${escapeHtml(item)}</span>`)
+      .join("");
+
     renderResultGallery([
       {
-        label: selected.primaryLabel,
-        src: selected.overlayPrimary,
-        alt: `${selected.title} - ${selected.primaryLabel}`,
+        label: "Overlay",
+        src: result.overlay_image_url,
+        alt: "Segmentation overlay",
         emphasized: true,
       },
       {
-        label: selected.secondaryLabel,
-        src: selected.overlaySecondary,
-        alt: `${selected.title} - ${selected.secondaryLabel}`,
-        emphasized: true,
+        label: "Mask",
+        src: result.mask_image_url,
+        alt: "Segmentation mask",
+        emphasized: false,
       },
     ]);
-    $("#case-notes").innerHTML = `<p>${selected.note}</p>`;
-    renderUncertaintyPanel();
-  }
 
-  function renderLiveStage() {
-    const result = state.liveResult;
-    $("#stage-tag").textContent = "Live inference";
-    $("#stage-title").textContent = result ? result.display_name || result.model_id : "Chưa có kết quả";
-    $("#stage-summary").textContent = result
-      ? result.note || "Kết quả được trả về từ backend inference nội bộ."
-      : "Tải ảnh X-quang lên, chọn checkpoint cục bộ, rồi chạy segmentation bằng backend độc lập của hệ thống này.";
+    $("#case-notes").innerHTML = `
+      <p><strong>Ảnh:</strong> ${escapeHtml(result.original_filename)}</p>
+      <p><strong>Checkpoint:</strong> ${escapeHtml(result.checkpoint_path)}</p>
+      <p><strong>Metadata:</strong> ${escapeHtml(JSON.stringify(result.metadata || {}))}</p>
+    `;
 
-    $("#stage-badges").innerHTML = renderBadges(
-      result
-        ? [
-            result.metadata?.model_type || "model",
-            result.checkpoint_name || "checkpoint",
-            `foreground:${result.metadata?.foreground_pixels ?? 0}`,
-          ]
-        : ["Standalone backend", "Local checkpoints", "Thesis-aligned"]
-    );
-
-    $("#original-image").src = result ? result.original_image_url : "";
-    renderResultGallery(
-      result
-        ? [
-            {
-              label: "Kết quả sau phân đoạn của model đã chọn",
-              src: result.overlay_image_url,
-              alt: `${result.display_name || result.model_id} - segmentation result`,
-              emphasized: true,
-            },
-            {
-              label: "Predict mask của model đã chọn",
-              src: result.mask_image_url,
-              alt: `${result.display_name || result.model_id} - predict mask`,
-              emphasized: false,
-            },
-          ]
-        : []
-    );
-    $("#case-notes").innerHTML = result
-      ? `
-        <p><strong>Model:</strong> ${result.model_id}</p>
-        <p><strong>Checkpoint:</strong> ${result.checkpoint_path}</p>
-        <p><strong>Metadata:</strong> model_type=${result.metadata?.model_type || "N/A"},
-        foreground_pixels=${result.metadata?.foreground_pixels ?? "N/A"},
-        processed_shape=${result.metadata?.processed_shape_hw?.join("x") || "N/A"}</p>
-      `
-      : "<p>Chế độ này hiện chạy bằng backend thật của chính thư mục `he_thong_phan_doan_u_xuong`, không còn dùng engine giả lập trong trình duyệt.</p>";
-    renderUncertaintyPanel();
-  }
-
-  function renderUncertaintyPanel() {
-    const panel = $("#uncertainty-panel");
-    const conformalSection = $("#conformal-section");
-    const toggleButton = $("#toggle-uncertainty");
-    const result = state.liveResult;
-    const uncertainty = result?.uncertainty;
-    const conformal = uncertainty?.conformal;
-    const available = Boolean(uncertainty?.available);
-
-    toggleButton.disabled = !available;
-    toggleButton.textContent = state.showUncertainty ? "Ẩn uncertainty score" : "Uncertainty score";
-
-    if (state.mode !== "live" || !state.showUncertainty || !available) {
-      panel.classList.add("hidden");
-      conformalSection.classList.add("hidden");
+    const uncertainty = result.uncertainty || {};
+    const hasUncertainty = Boolean(uncertainty.available);
+    $("#uncertainty-panel").classList.toggle("hidden", !hasUncertainty);
+    if (!hasUncertainty) {
       return;
     }
 
     $("#uncertainty-note").textContent = uncertainty.note || "";
-    $("#uncertainty-score-grid").innerHTML = uncertaintyScoreConfig
-      .map((item) => {
-        const value = uncertainty.summary?.[item.key];
-        return `
-          <article class="uncertainty-score-card">
-            <h4>${item.label}</h4>
-            <p class="uncertainty-score-value">${formatMetricValue(value)}</p>
-            <p class="uncertainty-score-note">${item.note}</p>
-          </article>
-        `;
-      })
-      .join("");
+    renderScoreGrid("uncertainty-score-grid", uncertainty.summary, uncertaintyScoreConfig);
+    renderHeatmaps("uncertainty-heatmaps", uncertainty.heatmaps || {});
 
-    $("#uncertainty-heatmaps").innerHTML = uncertaintyHeatmapConfig
-      .filter((item) => uncertainty.heatmaps?.[item.key])
-      .map(
-        (item) => `
-          <figure class="image-panel">
-            <figcaption>${item.label}</figcaption>
-            <div class="image-frame">
-              <img src="${uncertainty.heatmaps[item.key]}" alt="${item.label}" />
-            </div>
-            <p class="muted-note">${item.note}</p>
-          </figure>
-        `
-      )
-      .join("");
+    const conformal = uncertainty.conformal || {};
+    $("#conformal-section").classList.toggle("hidden", !conformal.available);
+    $("#conformal-note").textContent = conformal.note || "";
+    renderScoreGrid("conformal-score-grid", conformal.summary, conformalScoreConfig);
+    renderHeatmaps("conformal-heatmaps", conformal.heatmaps || {});
+  }
 
-    if (conformal?.available) {
-      $("#conformal-note").textContent = conformal.note || "";
-      $("#conformal-score-grid").innerHTML = conformalScoreConfig
-        .map((item) => {
-          const value = conformal.summary?.[item.key];
-          return `
-            <article class="uncertainty-score-card">
-              <h4>${item.label}</h4>
-              <p class="uncertainty-score-value">${formatMetricValue(value)}</p>
-              <p class="uncertainty-score-note">${item.note}</p>
-            </article>
-          `;
-        })
-        .join("");
-      $("#conformal-heatmaps").innerHTML = conformalHeatmapConfig
-        .filter((item) => conformal.heatmaps?.[item.key])
-        .map(
-          (item) => `
-            <figure class="image-panel">
-              <figcaption>${item.label}</figcaption>
-              <div class="image-frame">
-                <img src="${conformal.heatmaps[item.key]}" alt="${item.label}" />
-              </div>
-              <p class="muted-note">${item.note}</p>
-            </figure>
-          `
-        )
-        .join("");
-      conformalSection.classList.remove("hidden");
-    } else {
-      $("#conformal-note").textContent = conformal?.note || "";
-      $("#conformal-score-grid").innerHTML = "";
-      $("#conformal-heatmaps").innerHTML = "";
-      conformalSection.classList.add("hidden");
+  async function fetchJson(url, options) {
+    const response = await fetch(url, options);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || `Request failed: ${response.status}`);
     }
-
-    panel.classList.remove("hidden");
+    return payload;
   }
 
-  function renderStage() {
-    if (state.mode === "curated") {
-      renderCuratedStage();
-      return;
+  async function loadDashboard() {
+    state.dashboard = await fetchJson("/dashboard");
+    $("#thesis-title").textContent = state.dashboard.thesis_title;
+    renderStackList("overview-summary", state.dashboard.overview.summary || []);
+    renderHeroMetrics();
+    renderPipeline();
+    renderExperimentTables();
+  }
+
+  async function loadModels() {
+    state.models = await fetchJson("/models");
+    if (!state.selectedModelId) {
+      state.selectedModelId = state.dashboard?.overview?.default_model_id || state.models[0]?.model_id || null;
     }
-    renderLiveStage();
+    renderModelOptions();
   }
 
-  function renderTable(rows, columns, formatters = {}) {
-    const header = columns.map((column) => `<th>${column.label}</th>`).join("");
-    const body = rows
-      .map((row) => {
-        const cells = columns
-          .map((column) => {
-            const formatter = formatters[column.key];
-            const value = formatter ? formatter(row[column.key], row) : row[column.key];
-            return `<td>${value}</td>`;
-          })
-          .join("");
-        return `<tr>${cells}</tr>`;
-      })
-      .join("");
-
-    return `<div class="table-shell"><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></div>`;
+  async function loadImages() {
+    state.images = await fetchJson("/get_images");
+    renderImageOptions();
   }
 
-  function renderExperiments() {
-    renderStackList("batch-summary", data.batchSummary);
-
-    $("#binary-refresh-table").innerHTML = renderTable(
-      data.binaryRefresh,
-      [
-        { key: "run", label: "Run" },
-        { key: "ce", label: "CE weights" },
-        { key: "valLoss", label: "Best val loss" },
-        { key: "primaryDice", label: "Best primary Dice" },
-        { key: "testDice", label: "Test Dice" },
-      ],
-      {
-        valLoss: (value) => formatNumber(value),
-        primaryDice: (value) => formatNumber(value),
-        testDice: (value) => formatNumber(value),
-      }
-    );
-
-    $("#balanced76-table").innerHTML = renderTable(
-      data.balanced76,
-      [
-        { key: "run", label: "Run" },
-        { key: "dice", label: "Dice" },
-        { key: "precision", label: "Precision" },
-        { key: "recall", label: "Recall" },
-      ],
-      {
-        dice: (value) => formatNumber(value),
-        precision: (value) => formatNumber(value),
-        recall: (value) => formatNumber(value),
-      }
-    );
-    $("#headtohead-table").innerHTML = renderTable(
-      data.headToHead,
-      [
-        { key: "model", label: "Mô hình" },
-        { key: "init", label: "Khởi tạo" },
-        { key: "params", label: "Số tham số" },
-        { key: "valLoss", label: "Best val loss" },
-        { key: "testDice", label: "Dice" },
-        { key: "testIou", label: "IoU" },
-        { key: "precision", label: "Precision" },
-        { key: "recall", label: "Recall" },
-      ],
-      {
-        valLoss: (value) => formatNumber(value),
-        testDice: (value) => formatNumber(value),
-        testIou: (value) => formatNumber(value),
-        precision: (value) => formatNumber(value),
-        recall: (value) => formatNumber(value),
-      }
-    );
-
-    renderCeChart();
-  }
-
-  function renderCeChart() {
-    const maxDice = Math.max(...data.binaryRefresh.map((item) => item.testDice));
-    $("#ce-chart").innerHTML = data.binaryRefresh
-      .map(
-        (item) => `
-          <div class="bar-row">
-            <div class="bar-copy">
-              <strong>${item.ce}</strong>
-              <span>${item.run}</span>
-            </div>
-            <div class="bar-track">
-              <div class="bar-fill" style="width: ${(item.testDice / maxDice) * 100}%"></div>
-            </div>
-            <div class="bar-value">${formatNumber(item.testDice)}</div>
-          </div>
-        `
-      )
-      .join("");
-  }
-
-  async function checkBackendHealth() {
-    $("#backend-status").textContent = "Đang kiểm tra backend cục bộ...";
-    try {
-      const response = await fetch("/health");
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const payload = await response.json();
-      $("#backend-status").textContent = `Backend sẵn sàng: ${payload.status}. Warm-up model: ${
-        payload.predictor_warmup?.model_id || "N/A"
-      }.`;
-      return true;
-    } catch (error) {
-      $("#backend-status").textContent = `Không kết nối được backend cục bộ: ${error.message}`;
-      return false;
+  async function updateHealth() {
+    const health = await fetchJson("/health");
+    const warmup = health.predictor_warmup || {};
+    const parts = [
+      `status: ${health.status}`,
+      `warmup started: ${String(Boolean(warmup.started))}`,
+      `completed: ${String(Boolean(warmup.completed))}`,
+    ];
+    if (warmup.error) {
+      parts.push(`error: ${warmup.error}`);
     }
+    $("#backend-status").textContent = parts.join(" | ");
   }
 
-  async function refreshModels() {
-    $("#backend-status").textContent = "Đang tải model từ backend cục bộ...";
-    try {
-      const response = await fetch("/models");
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const models = await response.json();
-      state.models = models;
-      if (!models.some((item) => item.model_id === state.selectedModelId) && models[0]) {
-        state.selectedModelId = models[0].model_id;
-      }
-      renderModelSelect();
-      $("#backend-status").textContent = `Đã tải ${models.length} model/checkpoint cục bộ.`;
-    } catch (error) {
-      $("#backend-status").textContent = `Không thể tải model: ${error.message}`;
-    }
-  }
-
-  function renderModelSelect() {
-    const select = $("#model-select");
-    if (state.models.length === 0) {
-      select.innerHTML = `<option value="${data.liveInference.defaultModelId}">${data.liveInference.defaultModelId}</option>`;
-      select.value = data.liveInference.defaultModelId;
-      return;
-    }
-
-    select.innerHTML = state.models
-      .map(
-        (item) => `
-          <option value="${item.model_id}">
-            ${item.display_name || item.model_id}
-          </option>
-        `
-      )
-      .join("");
-    select.value = state.selectedModelId;
-  }
-
-  async function runLiveSegmentation() {
-    const fileInput = $("#live-upload");
-    const file = fileInput.files[0];
+  async function uploadImage() {
+    const input = $("#live-upload");
+    const [file] = input.files || [];
     if (!file) {
-      $("#backend-status").textContent = "Hãy chọn một ảnh trước khi chạy live inference.";
+      window.alert("Hãy chọn một ảnh trước khi tải lên.");
       return;
     }
 
-    $("#backend-status").textContent = "Đang upload ảnh lên backend cục bộ...";
-    try {
-      const uploadForm = new FormData();
-      uploadForm.append("images", file);
-      const uploadResponse = await fetch("/upload_images", {
-        method: "POST",
-        body: uploadForm,
-      });
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: HTTP ${uploadResponse.status}`);
-      }
-      const uploadPayload = await uploadResponse.json();
-      const uploadedImage = Array.isArray(uploadPayload) ? uploadPayload[uploadPayload.length - 1] : null;
-      if (!uploadedImage?.id) {
-        throw new Error("Missing uploaded image id.");
-      }
-
-      $("#backend-status").textContent = "Đang chạy inference từ checkpoint cục bộ...";
-      const segmentationResponse = await fetch("/segment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_id: uploadedImage.id,
-          model_id: state.selectedModelId,
-        }),
-      });
-      if (!segmentationResponse.ok) {
-        throw new Error(`Segmentation failed: HTTP ${segmentationResponse.status}`);
-      }
-      state.liveResult = await segmentationResponse.json();
-      state.showUncertainty = false;
-      $("#backend-status").textContent = "Inference hoàn tất và đã hiển thị kết quả.";
-      renderStage();
-    } catch (error) {
-      $("#backend-status").textContent = `Lỗi live inference: ${error.message}`;
-    }
+    const formData = new FormData();
+    formData.append("images", file);
+    const payload = await fetchJson("/upload_images", {
+      method: "POST",
+      body: formData,
+    });
+    const uploaded = payload[0];
+    state.selectedImageId = uploaded?.id || state.selectedImageId;
+    input.value = "";
+    await loadImages();
   }
 
-  function setMode(mode) {
-    state.mode = mode;
-    if (mode !== "live") {
-      state.showUncertainty = false;
+  async function deleteImage() {
+    if (!state.selectedImageId) {
+      window.alert("Chưa chọn ảnh để xóa.");
+      return;
     }
-    document.querySelectorAll(".mode-button").forEach((button) => {
-      button.classList.toggle("active", button.dataset.mode === mode);
-    });
-    $("#curated-controls").classList.toggle("hidden", mode !== "curated");
-    $("#live-controls").classList.toggle("hidden", mode !== "live");
-    $("#mode-description").textContent =
-      mode === "curated"
-        ? "Artifact mode luôn chạy được để bảo vệ luận văn bằng ảnh minh họa và số liệu đã chốt."
-        : "Live inference hiện dùng backend cục bộ và checkpoint thật đã được chép vào thư mục này.";
-    renderStage();
+    if (String(state.selectedImageId).startsWith("default:")) {
+      window.alert("Ảnh mẫu mặc định không thể xóa.");
+      return;
+    }
+    await fetchJson(`/images/${encodeURIComponent(state.selectedImageId)}`, { method: "DELETE" });
+    state.selectedImageId = null;
+    await loadImages();
+  }
+
+  async function runSegmentation() {
+    if (!state.selectedImageId) {
+      window.alert("Hãy chọn ảnh đầu vào trước.");
+      return;
+    }
+    if (!state.selectedModelId) {
+      window.alert("Hãy chọn checkpoint trước.");
+      return;
+    }
+
+    const button = $("#run-live-segmentation");
+    button.disabled = true;
+    button.textContent = "Đang chạy...";
+    try {
+      state.liveResult = await fetchJson("/segment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_id: state.selectedImageId, model_id: state.selectedModelId }),
+      });
+      renderLiveResult();
+    } finally {
+      button.disabled = false;
+      button.textContent = "Chạy segmentation";
+    }
   }
 
   function bindEvents() {
-    document.querySelectorAll(".mode-button").forEach((button) => {
-      button.addEventListener("click", () => setMode(button.dataset.mode));
+    $("#check-backend").addEventListener("click", updateHealth);
+    $("#refresh-models").addEventListener("click", loadModels);
+    $("#refresh-library").addEventListener("click", loadImages);
+    $("#upload-image").addEventListener("click", uploadImage);
+    $("#delete-image").addEventListener("click", deleteImage);
+    $("#run-live-segmentation").addEventListener("click", runSegmentation);
+    $("#image-select").addEventListener("change", (event) => {
+      state.selectedImageId = event.target.value;
+      const selected = flattenImages().find((item) => item.id === state.selectedImageId);
+      if (selected) {
+        $("#original-image").src = selected.image_url;
+      }
     });
-
     $("#model-select").addEventListener("change", (event) => {
       state.selectedModelId = event.target.value;
-    });
-
-    $("#check-backend").addEventListener("click", checkBackendHealth);
-    $("#refresh-models").addEventListener("click", refreshModels);
-    $("#run-live-segmentation").addEventListener("click", runLiveSegmentation);
-    $("#toggle-uncertainty").addEventListener("click", () => {
-      if (!state.liveResult?.uncertainty?.available) {
-        return;
-      }
-      state.showUncertainty = !state.showUncertainty;
-      renderStage();
     });
   }
 
   async function bootstrap() {
-    $("#thesis-title").textContent = data.thesisTitle;
-    renderHeroMetrics();
-    renderStackList("dataset-summary", data.datasetSummary);
-    renderStackList("defense-points", data.defensePoints);
-    renderPipeline();
-    renderCases();
-    renderExperiments();
-    renderModelSelect();
     bindEvents();
-    await checkBackendHealth();
-    await refreshModels();
-    setMode("curated");
+    try {
+      await loadDashboard();
+      await Promise.all([loadModels(), loadImages(), updateHealth()]);
+    } catch (error) {
+      $("#backend-status").textContent = error.message;
+    }
   }
 
   bootstrap();
