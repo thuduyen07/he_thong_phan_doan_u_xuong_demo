@@ -19,17 +19,14 @@ Khi mở web, người dùng có thể xem các phần sau:
 - dashboard đọc phần artifact còn lại trong `resources/outputs` sau khi đã gỡ bộ phương pháp cũ
 - chế độ chạy live inference trên ảnh tải lên khi repo được bổ sung checkpoint mới phù hợp
 
-## 3. Pull các file được lưu trữ bằng DVC trước khi chạy
+## 3. Chuẩn bị các checkpoint trước khi chạy
 
-Nếu đang dùng một bản clone mới hoặc một máy chưa có sẵn các file pretrained, hãy kéo các artifact được quản lý bởi DVC trước.
+Nếu đang dùng một bản clone mới hoặc một máy chưa có sẵn các file pretrained, hãy đảm bảo các checkpoint và artifact cần thiết đã nằm trực tiếp trong thư mục `resources/pretrained/` hoặc được tải xuống từ nguồn cung cấp tương ứng trước khi khởi động hệ thống.
 
-Từ thư mục gốc của repository, chạy:
+Ví dụ, các file cần có thể nằm trong:
 
-```bash
-dvc pull \
-  resources/pretrained/segformer_b0_ade_512_512/pytorch_model.bin.dvc \
-  resources/pretrained/segformer_b0_ade_512_512/model.safetensors.dvc \
-  resources/pretrained/segformer_b0_ade_512_512/tf_model.h5.dvc
+```text
+resources/pretrained/segformer_b0_ade_512_512/
 ```
 
 ## 4. Cách khởi động nhanh bằng Docker Compose
