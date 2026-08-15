@@ -3,14 +3,13 @@ from __future__ import annotations
 import json
 import threading
 
-import cv2
 import numpy as np
-import torch
 from PIL import Image
 from pathlib import Path
 
 from backend.inference.contracts import PredictionArtifacts
 from backend.inference.device import resolve_inference_device
+from backend.inference.image_ops import blend_rgb, gray_to_rgb, resize_grayscale
 from backend.inference.predictors.base import SegmentationPredictor
 from backend.inference.runtime_paths import RESOURCES_DIR, ensure_runtime_paths
 
@@ -37,6 +36,7 @@ from runtime_src.seg.models import (  # noqa: E402
     extract_logits,
     get_model_type,
 )
+import torch  # noqa: E402
 
 
 class TorchSegmentationPredictor(SegmentationPredictor):
@@ -378,7 +378,7 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         dict[str, object] | None,
         dict[str, np.ndarray],
     ]:
-        resized = cv2.resize(processed, (self.img_size, self.img_size), interpolation=cv2.INTER_LINEAR)
+        resized = resize_grayscale(processed, self.img_size)
         arr = resized.astype(np.float32) / 255.0
         x = torch.from_numpy(arr).unsqueeze(0).repeat(3, 1, 1).unsqueeze(0).to(self.device)
         model = self._load_model()
@@ -421,9 +421,9 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         original_gray, processed, prep_metadata = self._prepare_image(image)
         pred_mask, uncertainty_summary, uncertainty_maps, conformal_summary, conformal_maps = self._predict_mask(processed)
 
-        original_rgb = cv2.cvtColor(original_gray, cv2.COLOR_GRAY2RGB)
+        original_rgb = gray_to_rgb(original_gray)
         color_mask = self._colorize_mask(pred_mask)
-        overlay = cv2.addWeighted(original_rgb, 0.65, color_mask, 0.35, 0.0)
+        overlay = blend_rgb(original_rgb, color_mask, alpha=0.35)
 
         extra_metadata = {
             **prep_metadata,

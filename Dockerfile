@@ -1,8 +1,11 @@
 FROM python:3.11-slim-bookworm
 
+ARG INSTALL_INFERENCE=false
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    INSTALL_INFERENCE=${INSTALL_INFERENCE} \
     HOST=0.0.0.0 \
     PORT=4173
 
@@ -10,8 +13,6 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libglib2.0-0 \
-        libgl1 \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,9 +20,11 @@ RUN groupadd --system appuser \
     && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser
 
 COPY requirements.txt /app/requirements.txt
+COPY requirements-inference.txt /app/requirements-inference.txt
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r /app/requirements.txt
+    && python -m pip install -r /app/requirements.txt \
+    && if [ "$INSTALL_INFERENCE" = "true" ]; then python -m pip install -r /app/requirements-inference.txt; fi
 
 COPY app /app/app
 COPY backend /app/backend

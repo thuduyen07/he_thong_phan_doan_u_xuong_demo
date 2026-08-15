@@ -165,17 +165,14 @@
       { label: "Conformal", render: (row) => (row.conformal?.available ? `yes (${formatMetricValue(row.conformal.target_coverage)})` : "no") },
     ];
 
-    const compactColumns = [
-      { label: "Run", key: "display_name" },
-      { label: "Dice", render: (row) => formatMetricValue(row.test_dice) },
-      { label: "Precision", render: (row) => formatMetricValue(row.test_precision) },
-      { label: "Recall", render: (row) => formatMetricValue(row.test_recall) },
-      { label: "Primary", render: (row) => formatMetricValue(row.primary_value) },
-    ];
-
     $("#runs-table").innerHTML = buildTable(runColumns, experiments.runs || []);
-    $("#binary-refresh-table").innerHTML = buildTable(compactColumns, experiments.binary_refresh || []);
-    $("#balanced76-table").innerHTML = buildTable(compactColumns, experiments.balanced76 || []);
+    renderStackList("artifact-status", [
+      `Số artifact thực nghiệm còn lại: ${(experiments.runs || []).length}.`,
+      `Số checkpoint live hiện khả dụng: ${state.models.length}.`,
+      state.models.length
+        ? "Repo demo đang có checkpoint mới để chạy live inference."
+        : "Repo demo hiện chưa có checkpoint mới, nên live inference đang ở trạng thái chờ bổ sung artifact mới.",
+    ]);
   }
 
   function flattenImages() {
@@ -211,12 +208,14 @@
     if (!state.selectedModelId && state.models.length) {
       state.selectedModelId = state.models[0].model_id;
     }
-    select.innerHTML = state.models
-      .map((model) => {
-        const selected = model.model_id === state.selectedModelId ? "selected" : "";
-        return `<option value="${escapeHtml(model.model_id)}" ${selected}>${escapeHtml(model.display_name)}</option>`;
-      })
-      .join("");
+    select.innerHTML = state.models.length
+      ? state.models
+          .map((model) => {
+            const selected = model.model_id === state.selectedModelId ? "selected" : "";
+            return `<option value="${escapeHtml(model.model_id)}" ${selected}>${escapeHtml(model.display_name)}</option>`;
+          })
+          .join("")
+      : '<option value="">Chưa có checkpoint mới</option>';
   }
 
   function renderResultGallery(items) {
@@ -341,7 +340,6 @@
     renderStackList("overview-summary", state.dashboard.overview.summary || []);
     renderHeroMetrics();
     renderPipeline();
-    renderExperimentTables();
   }
 
   async function loadModels() {
@@ -350,6 +348,7 @@
       state.selectedModelId = state.dashboard?.overview?.default_model_id || state.models[0]?.model_id || null;
     }
     renderModelOptions();
+    renderExperimentTables();
   }
 
   async function loadImages() {

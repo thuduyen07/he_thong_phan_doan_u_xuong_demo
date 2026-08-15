@@ -57,25 +57,16 @@
           </div>
           <div class="results-grid two-up">
             <div class="result-card">
-              <h3>Run được đóng gói trong demo</h3>
+              <h3>Artifact thực nghiệm còn lại trong repo demo</h3>
               <p class="muted-note">
-                Các dòng bên dưới được đọc trực tiếp từ `resources/outputs` và hồ sơ
-                conformal tương ứng, không phải dữ liệu trình chiếu hard-code.
+                Danh sách này được đọc trực tiếp từ `resources/outputs` sau khi đã gỡ
+                các checkpoint và artifact của phương pháp cũ.
               </p>
               <div id="runs-table"></div>
             </div>
             <div class="result-card">
-              <h3>Binary refresh và benchmark đóng gói</h3>
-              <div class="table-stack">
-                <div>
-                  <p class="mini-tag">Binary refresh</p>
-                  <div id="binary-refresh-table"></div>
-                </div>
-                <div>
-                  <p class="mini-tag">Balanced76</p>
-                  <div id="balanced76-table"></div>
-                </div>
-              </div>
+              <h3>Trạng thái sau khi dọn artifact cũ</h3>
+              <div id="artifact-status" class="stack-list"></div>
             </div>
           </div>
         </section>
@@ -117,7 +108,7 @@
                   Chạy segmentation
                 </button>
                 <p class="muted-note">
-                  Kết quả live dùng đúng backend cục bộ của demo và sẽ dựng uncertainty/conformal nếu checkpoint có artifact phù hợp.
+                  Nếu chưa có checkpoint mới trong repo demo thì danh sách model sẽ trống và live inference sẽ tạm thời không chạy được.
                 </p>
               </div>
             </aside>

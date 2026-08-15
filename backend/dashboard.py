@@ -5,7 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from backend.inference.registry import ALLOWED_EXPERIMENT_RUNS
 from backend.inference.runtime_paths import APP_DIR, RESOURCES_DIR
 from backend.inference.service import DEFAULT_MODEL_ID, available_models
 from runtime_src.common.io_utils import load_yaml
@@ -129,13 +128,15 @@ def _discover_runs() -> list[dict[str, Any]]:
 
     for run_dir, run_date, phase in _iter_run_dirs(OUTPUTS_ROOT):
         run_key = _run_key(run_dir, run_date, phase)
-        allowed = ALLOWED_EXPERIMENT_RUNS.get(run_key)
-        if allowed is None:
+        run_manifest_path = run_dir / "run_manifest.json"
+        config_snapshot_path = run_dir / "config_snapshot.yaml"
+        checkpoint_path = run_dir / "seg_best.pt"
+        if not run_manifest_path.exists() or not config_snapshot_path.exists() or not checkpoint_path.exists():
             continue
 
         config_snapshot = _safe_read_yaml(run_dir / "config_snapshot.yaml")
         train_summary = _safe_read_json(run_dir / "metrics_summary.json")
-        run_manifest = _safe_read_json(run_dir / "run_manifest.json")
+        run_manifest = _safe_read_json(run_manifest_path)
 
         evaluation_paths = [
             run_dir / "eval_test_binary" / "metrics_summary.json",
@@ -156,12 +157,13 @@ def _discover_runs() -> list[dict[str, Any]]:
         positive_only = dict(tumor_metrics.get("positive_reference_only") or {})
 
         resolved_phase = phase or str((run_manifest.get("experiment_tags") or {}).get("benchmark") or "standalone")
+        display_name = str((run_manifest.get("method_name") or run_dir.name)).strip() or run_dir.name
         runs.append(
             {
                 "run_key": run_key,
                 "run_name": run_dir.name,
-                "display_name": allowed["display_name"],
-                "note": allowed["note"],
+                "display_name": display_name,
+                "note": "Artifact này hiện chỉ còn được giữ để kiểm kê nội bộ.",
                 "phase": resolved_phase,
                 "run_date": run_date,
                 "training_mode": train_metrics.get("training_mode") or config_snapshot.get("training", {}).get("mode") or "supervised",
@@ -233,8 +235,6 @@ def _hero_metrics(runs: list[dict[str, Any]]) -> list[dict[str, str]]:
 @lru_cache(maxsize=1)
 def get_dashboard_payload() -> dict[str, Any]:
     runs = _discover_runs()
-    binary_refresh = [item for item in runs if item["run_date"] == "20260809" and item["model_type"] == "segformer"]
-    balanced76 = [item for item in runs if "balanced76" in item["run_key"]]
 
     return {
         "thesis_title": "Xây dựng hệ thống phân đoạn u xương trên ảnh X-quang dựa trên kiến trúc transformer",
@@ -242,8 +242,8 @@ def get_dashboard_payload() -> dict[str, Any]:
         "overview": {
             "summary": [
                 "Web demo này chỉ giữ các phần bám trực tiếp vào pipeline supervised segmentation -> mean teacher -> uncertainty -> adaptive CRC.",
-                "Bảng kết quả được dựng từ artifact thật trong resources/outputs thay vì nội dung trình chiếu thủ công.",
-                "Live lab cho phép tải ảnh X-quang mới, chạy segmentation, rồi dựng uncertainty và conformal map hậu kiểm nếu checkpoint có calibration profile.",
+                "Các checkpoint và artifact thực nghiệm của phương pháp cũ đã được gỡ khỏi repo demo này.",
+                "Live lab chỉ hoạt động khi repo được bổ sung checkpoint mới phù hợp với pipeline hiện hành.",
             ],
             "sample_image_count": _count_default_images(),
             "default_model_id": DEFAULT_MODEL_ID,
@@ -255,7 +255,5 @@ def get_dashboard_payload() -> dict[str, Any]:
         },
         "experiments": {
             "runs": runs,
-            "binary_refresh": binary_refresh,
-            "balanced76": balanced76,
         },
     }

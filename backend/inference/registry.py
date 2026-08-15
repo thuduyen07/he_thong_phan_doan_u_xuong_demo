@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import json
+import importlib
 import re
 from pathlib import Path
 
 from backend.inference.contracts import PredictorSpec
-from backend.inference.predictors.torch_segmentation import TorchSegmentationPredictor
 from backend.inference.runtime_paths import RESOURCES_DIR
 from runtime_src.common.io_utils import load_yaml
 
 
 PREDICTOR_CLASSES = {
-    "torch_segmentation": TorchSegmentationPredictor,
+    "torch_segmentation": "backend.inference.predictors.torch_segmentation:TorchSegmentationPredictor",
 }
 
 
@@ -21,50 +21,7 @@ def _slugify(value: str) -> str:
 
 STATIC_MODEL_SPECS: dict[str, PredictorSpec] = {}
 
-ALLOWED_EXPERIMENT_RUNS: dict[str, dict[str, str]] = {
-    "20260809/baseline/seg_seed_v2_baseline_seed-42_20260809": {
-        "display_name": "SegFormer Binary Baseline [1.0, 2.0]",
-        "note": (
-            "SegFormer-B0 binary baseline on splits_seed_v2. "
-            "This is the direct binary-refresh baseline reported in Chapter 4."
-        ),
-    },
-    "20260809/ce_weights/seg_seed_v2_ce_weights_ce_weights-1-1_seed-42_20260809": {
-        "display_name": "SegFormer Binary CE [1.0, 1.0]",
-        "note": (
-            "SegFormer-B0 binary CE-balanced checkpoint. "
-            "This is the validation-loss-selected binary-refresh checkpoint reported in Chapter 4."
-        ),
-    },
-    "20260809/ce_weights/seg_seed_v2_ce_weights_ce_weights-1-3_seed-42_20260809": {
-        "display_name": "SegFormer Binary CE [1.0, 3.0]",
-        "note": (
-            "SegFormer-B0 binary foreground-upweighted checkpoint. "
-            "This is the strongest narrow-split Dice checkpoint reported in Chapter 4."
-        ),
-    },
-    "20260809/baseline/unet_seed_v2_baseline_seed-42_20260809": {
-        "display_name": "U-Net Nhe Binary Baseline",
-        "note": (
-            "Minimal direct CNN baseline on the same binary splits_seed_v2 protocol. "
-            "This is the U-Net comparison run reported in Chapter 4."
-        ),
-    },
-    "balanced76_segformer_finetune_512_batch4_proposed_hyperpara": {
-        "display_name": "SegFormer Binary Proposed Hyperpara",
-        "note": (
-            "SegFormer-B0 binary checkpoint trained with the proposed hyperparameters. "
-            "This is the strongest narrow-split Dice checkpoint reported in Chapter 4."
-        ),
-    },
-    "unet_balanced76_finetune_512_batch4": {
-        "display_name": "U-Net Binary Proposed Hyperpara",
-        "note": (
-            "U-Net binary checkpoint trained with the proposed hyperparameters. "
-            "This is the strongest narrow-split Dice checkpoint reported in Chapter 4."
-        ),
-    }
-}
+ALLOWED_EXPERIMENT_RUNS: dict[str, dict[str, str]] = {}
 
 
 def _collect_run_dirs(root: Path) -> list[tuple[Path, str]]:
@@ -136,7 +93,6 @@ def _discover_experiment_specs() -> dict[str, PredictorSpec]:
             run_key = run_name
         allowed_entry = ALLOWED_EXPERIMENT_RUNS.get(run_key)
         if allowed_entry is None:
-            print(f"Skipping unrecognized run: {run_key}")
             continue
         model_id_parts = ["thesis"]
         if run_date:
@@ -193,5 +149,11 @@ def build_predictor(model_id: str):
     spec = next((item for item in list_model_specs() if item.model_id == model_id), None)
     if spec is None:
         raise KeyError(f"Unknown model_id: {model_id}")
-    predictor_class = PREDICTOR_CLASSES[spec.predictor_type]
+    predictor_entry = PREDICTOR_CLASSES[spec.predictor_type]
+    if isinstance(predictor_entry, str):
+        module_name, class_name = predictor_entry.split(":", 1)
+        module = importlib.import_module(module_name)
+        predictor_class = getattr(module, class_name)
+    else:
+        predictor_class = predictor_entry
     return predictor_class(spec)

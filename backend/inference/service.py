@@ -8,10 +8,10 @@ import uuid
 from functools import lru_cache
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PIL import Image
 
+from backend.inference.image_ops import blend_rgb, colorize_heatmap, save_grayscale_png, save_rgb_png
 from backend.inference.registry import build_predictor, list_model_specs
 from backend.inference.runtime_paths import APP_DIR, RESOURCES_DIR, RUNTIME_STATIC_DIR
 
@@ -25,24 +25,16 @@ PREDICTOR_CACHE: dict[str, dict[str, object]] = {}
 PREDICTOR_CACHE_LOCK = threading.Lock()
 
 
-def _resolve_default_model_id() -> str:
+def _resolve_default_model_id() -> str | None:
     available_ids = {spec.model_id for spec in list_model_specs()}
-    for candidate in (
-        "thesis_20260809_ce_weights_seg_seed_v2_ce_weights_ce_weights_1_1_seed_42_20260809",
-        "thesis_20260809_ce_weights_seg_seed_v2_ce_weights_ce_weights_1_3_seed_42_20260809",
-        "thesis_20260809_baseline_seg_seed_v2_baseline_seed_42_20260809",
-        "thesis_20260809_baseline_unet_seed_v2_baseline_seed_42_20260809",
-    ):
-        if candidate in available_ids:
-            return candidate
     if available_ids:
         return sorted(available_ids)[0]
-    return "thesis_20260809_ce_weights_seg_seed_v2_ce_weights_ce_weights_1_1_seed_42_20260809"
+    return None
 
 
 DEFAULT_MODEL_ID = _resolve_default_model_id()
 WARMUP_STATE = {
-    "enabled": True,
+    "enabled": DEFAULT_MODEL_ID is not None,
     "started": False,
     "completed": False,
     "model_id": DEFAULT_MODEL_ID,
@@ -215,7 +207,7 @@ def available_models() -> list[dict]:
 
 
 def _save_rgb_png(path: Path, image: np.ndarray) -> None:
-    cv2.imwrite(str(path), cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+    save_rgb_png(path, image)
 
 
 def _save_mask_png(path: Path, mask: np.ndarray) -> None:
@@ -227,20 +219,12 @@ def _save_mask_png(path: Path, mask: np.ndarray) -> None:
         preview = mask_uint8 * 255
     else:
         preview = np.rint(mask_uint8.astype(np.float32) * (255.0 / max_value)).astype(np.uint8)
-    cv2.imwrite(str(path), preview)
-
-
-def _colorize_heatmap(values: np.ndarray) -> np.ndarray:
-    arr = np.asarray(values, dtype=np.float32)
-    clipped = np.clip(arr, 0.0, 1.0)
-    heat = np.rint(clipped * 255.0).astype(np.uint8)
-    colored = cv2.applyColorMap(heat, cv2.COLORMAP_TURBO)
-    return cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
+    save_grayscale_png(path, preview)
 
 
 def _save_heatmap_overlay(path: Path, original_rgb: np.ndarray, values: np.ndarray) -> None:
-    colored = _colorize_heatmap(values)
-    overlay = cv2.addWeighted(original_rgb, 0.45, colored, 0.55, 0.0)
+    colored = colorize_heatmap(values)
+    overlay = blend_rgb(original_rgb, colored, alpha=0.55)
     _save_rgb_png(path, overlay)
 
 
@@ -340,6 +324,9 @@ def _run_default_predictor_warmup() -> None:
     WARMUP_STATE["started"] = True
     WARMUP_STATE["completed"] = False
     WARMUP_STATE["error"] = None
+    if DEFAULT_MODEL_ID is None:
+        WARMUP_STATE["completed"] = True
+        return
     try:
         _eager_load_predictor(DEFAULT_MODEL_ID)
         WARMUP_STATE["completed"] = True
@@ -349,7 +336,7 @@ def _run_default_predictor_warmup() -> None:
 
 def start_default_predictor_warmup() -> None:
     global WARMUP_THREAD
-    if WARMUP_STATE["started"]:
+    if WARMUP_STATE["started"] or DEFAULT_MODEL_ID is None:
         return
     WARMUP_THREAD = threading.Thread(
         target=_run_default_predictor_warmup,
@@ -365,6 +352,8 @@ def get_warmup_state() -> dict:
 
 def run_segmentation(*, image_id: str | None, model_id: str | None) -> dict:
     selected_model_id = model_id or DEFAULT_MODEL_ID
+    if selected_model_id is None:
+        raise RuntimeError("No checkpoint is currently available in this demo.")
     current_specs = {spec.model_id: spec for spec in list_model_specs()}
     selected_spec = current_specs.get(selected_model_id)
     image_item = resolve_demo_image(image_id)

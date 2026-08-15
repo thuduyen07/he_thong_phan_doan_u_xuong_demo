@@ -16,8 +16,8 @@ Hệ thống hỗ trợ hai mục tiêu chính:
 Khi mở web, người dùng có thể xem các phần sau:
 
 - phần mô tả kiến trúc pipeline và lịch thực nghiệm
-- dashboard đọc kết quả thực nghiệm trực tiếp từ artifact trong `resources/outputs`
-- chế độ chạy live inference trên ảnh tải lên, kèm uncertainty và conformal map hậu kiểm nếu checkpoint có calibration profile
+- dashboard đọc phần artifact còn lại trong `resources/outputs` sau khi đã gỡ bộ phương pháp cũ
+- chế độ chạy live inference trên ảnh tải lên khi repo được bổ sung checkpoint mới phù hợp
 
 ## 3. Pull các file được lưu trữ bằng DVC trước khi chạy
 
@@ -53,12 +53,18 @@ python3 -m pip install -r requirements.txt
 python3 server.py
 ```
 
+Nếu cần bật live inference với `torch + transformers`, cài thêm:
+
+```bash
+python3 -m pip install -r requirements-inference.txt
+```
+
 ## 6. Luồng sử dụng chính
 
 1. Mở web và xem phần `Pipeline` để nắm kiến trúc supervised -> mean teacher -> uncertainty -> adaptive CRC.
-2. Xem phần `Experiments` để đọc các run đã được đóng gói trong `resources/outputs`.
-3. Tải ảnh mới ở phần `Live Lab`, chọn checkpoint, rồi chạy segmentation.
-4. Nếu checkpoint có conformal artifact, web sẽ hiển thị thêm prediction set hậu kiểm cùng các heatmap uncertainty.
+2. Xem phần `Experiments` để kiểm tra các artifact còn lại sau khi dọn phương pháp cũ.
+3. Khi có checkpoint mới trong repo demo, tải ảnh mới ở phần `Live Lab`, chọn checkpoint, rồi chạy segmentation.
+4. Nếu checkpoint mới có conformal artifact, web sẽ hiển thị thêm prediction set hậu kiểm cùng các heatmap uncertainty.
 
 ## 7. Cấu trúc thư mục chính
 
@@ -71,6 +77,8 @@ python3 server.py
 
 ## 8. Ghi chú kỹ thuật ngắn
 
-- Endpoint `/dashboard` tổng hợp dữ liệu thực nghiệm trực tiếp từ artifact local.
-- Endpoint `/segment` vẫn dùng backend inference cục bộ như bản demo trước.
+- Endpoint `/dashboard` tổng hợp dữ liệu trực tiếp từ artifact local còn lại sau khi dọn bộ cũ.
+- Endpoint `/segment` sẽ báo lỗi rõ ràng nếu repo demo chưa có checkpoint live mới.
 - Ảnh người dùng tải lên được lưu tại `runtime_static/uploads` và có thể xóa lại từ giao diện.
+- `requirements.txt` là bản nhẹ để deploy dashboard web.
+- `requirements-inference.txt` chỉ cần khi muốn bật live inference cục bộ hoặc trên host đủ RAM.
