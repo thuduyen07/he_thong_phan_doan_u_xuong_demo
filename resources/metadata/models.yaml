@@ -1,0 +1,12 @@
+models:
+  - id: btxrd_segformer_b0_entropy
+    display_name: SegFormer-B0 | BTXRD | Mean Teacher + entropy
+    dataset: btxrd
+    architecture: segformer_b0
+    method: mean_teacher_entropy
+    config: resources/configs/btxrd_segformer_b0_entropy.yaml
+    checkpoint: resources/checkpoints/btxrd_segformer_b0_entropy_student_best.pt
+    threshold: 0.50
+    calibration_artifact: ""
+    enabled: false
+    description: Enable only after copying the matching config and checkpoint. Calibration is optional and checkpoint-specific.

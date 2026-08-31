@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 
 from backend.inference.image_ops import blend_rgb, colorize_heatmap, save_grayscale_png, save_rgb_png
-from backend.inference.registry import build_predictor, list_model_specs
+from backend.inference.registry import build_predictor, list_model_records, list_model_specs
 from backend.inference.runtime_paths import APP_DIR, RESOURCES_DIR, RUNTIME_STATIC_DIR
 
 
@@ -21,6 +21,7 @@ RESULT_DIR = RUNTIME_STATIC_DIR / "results"
 MANIFEST_PATH = RUNTIME_STATIC_DIR / "upload_manifest.json"
 PATIENT_LABELS_PATH = RESOURCES_DIR / "metadata" / "patient_with_labels.csv"
 DEFAULT_DEMO_IMAGE_DIR = APP_DIR / "assets" / "cases" / "original"
+ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 PREDICTOR_CACHE: dict[str, dict[str, object]] = {}
 PREDICTOR_CACHE_LOCK = threading.Lock()
 
@@ -96,7 +97,15 @@ def build_patient_record(filename: str) -> dict | None:
 
 
 def store_upload(file_storage) -> dict:
-    ext = Path(file_storage.filename or "upload.png").suffix.lower() or ".png"
+    ext = Path(file_storage.filename or "upload.png").suffix.lower()
+    if ext not in ALLOWED_IMAGE_SUFFIXES:
+        raise ValueError("Chỉ chấp nhận ảnh PNG, JPEG, BMP, TIFF hoặc WebP.")
+    try:
+        with Image.open(file_storage.stream) as candidate:
+            candidate.verify()
+        file_storage.stream.seek(0)
+    except Exception as exc:
+        raise ValueError("Tệp tải lên không phải ảnh hợp lệ.") from exc
     file_id = uuid.uuid4().hex
     stored_name = f"{file_id}{ext}"
     destination = UPLOAD_DIR / stored_name
@@ -108,7 +117,6 @@ def store_upload(file_storage) -> dict:
         "stored_name": stored_name,
         "image_url": f"/runtime_static/uploads/{stored_name}",
         "source": "custom",
-        "patient_record": build_patient_record(file_storage.filename or stored_name),
     }
     manifest = load_manifest()
     manifest.append(item)
@@ -123,7 +131,6 @@ def list_uploaded_images() -> list[dict]:
 def list_default_demo_images() -> list[dict]:
     if not DEFAULT_DEMO_IMAGE_DIR.exists():
         return []
-    supported_suffixes = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
     return [
         {
             "id": f"default:{path.name}",
@@ -131,10 +138,9 @@ def list_default_demo_images() -> list[dict]:
             "stored_name": path.name,
             "image_url": f"/app/assets/cases/original/{path.name}",
             "source": "default",
-            "patient_record": build_patient_record(path.name),
         }
         for path in sorted(DEFAULT_DEMO_IMAGE_DIR.iterdir())
-        if path.is_file() and path.suffix.lower() in supported_suffixes
+        if path.is_file() and path.suffix.lower() in ALLOWED_IMAGE_SUFFIXES
     ]
 
 
@@ -178,32 +184,7 @@ def resolve_demo_image_path(image_item: dict) -> Path:
 
 
 def available_models() -> list[dict]:
-    items = []
-    for spec in list_model_specs():
-        items.append(
-            {
-                "model_id": spec.model_id,
-                "display_name": spec.display_name,
-                "predictor_type": spec.predictor_type,
-                "checkpoint_path": str(spec.checkpoint_path),
-                "config_path": str(spec.config_path),
-                "note": spec.note,
-                "cache_token": spec.cache_token,
-                "extra_metadata": spec.extra_metadata or {},
-            }
-        )
-    source_priority = {
-        "thesis_local_batch": 0,
-    }
-    items.sort(
-        key=lambda item: (
-            source_priority.get(item.get("extra_metadata", {}).get("source"), 9),
-            item.get("extra_metadata", {}).get("run_date", ""),
-            item.get("extra_metadata", {}).get("phase", ""),
-            item["display_name"].lower(),
-        )
-    )
-    return items
+    return list_model_records()
 
 
 def _save_rgb_png(path: Path, image: np.ndarray) -> None:
@@ -258,7 +239,7 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
     predicted_tumor_present = bool(summary.get("predicted_tumor_present"))
     if predicted_tumor_present:
         note = (
-            "Các score này được suy ra hậu kiểm từ logits/softmax của ảnh vừa segment, "
+            "Các score này được suy ra hậu kiểm từ xác suất phân đoạn của ảnh vừa segment, "
             "không phải là xác suất chẩn đoán lâm sàng."
         )
     else:
@@ -269,8 +250,8 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
     conformal_available = bool(conformal_summary.get("available"))
     if conformal_available:
         conformal_note = (
-            "Prediction set conformal được dựng hậu kiểm từ artifact calibration đã lưu sẵn. "
-            "Coverage guarantee chỉ có ý nghĩa khi giả định exchangeability giữa tập calibration và dữ liệu demo là phù hợp."
+            "Reliability metadata được đọc từ artifact hiệu chỉnh đã khai báo cho đúng checkpoint. "
+            "Không diễn giải như bảo đảm lâm sàng cho ảnh upload tùy ý."
         )
     elif conformal_summary:
         conformal_note = (
@@ -377,10 +358,8 @@ def run_segmentation(*, image_id: str | None, model_id: str | None) -> dict:
         "model_id": artifacts.model_id,
         "display_name": selected_spec.display_name if selected_spec else artifacts.model_id,
         "checkpoint_name": artifacts.checkpoint_path.name,
-        "checkpoint_path": str(artifacts.checkpoint_path),
         "original_image_url": image_item["image_url"],
         "original_filename": image_item.get("filename") or image_item["stored_name"],
-        "patient_record": image_item.get("patient_record"),
         "overlay_image_url": f"/runtime_static/results/{overlay_name}",
         "mask_image_url": f"/runtime_static/results/{mask_name}",
         "note": artifacts.note,

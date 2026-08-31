@@ -23,6 +23,8 @@ htmlcov/
 runtime_static/uploads/
 runtime_static/results/
 runtime_static/upload_manifest.json
+resources/checkpoints/
+resources/configs/
 
 *.log
 .DS_Store

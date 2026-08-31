@@ -12,8 +12,6 @@
     ["mean_predictive_entropy_pred_tumor", "Mean entropy"],
     ["p90_predictive_entropy_pred_tumor", "P90 entropy"],
     ["mean_predictive_entropy_boundary_tumor", "Boundary entropy"],
-    ["mean_one_minus_msp_pred_tumor", "1 - MSP"],
-    ["mean_one_minus_margin_pred_tumor", "1 - Margin"],
     ["low_tumor_probability_fraction_pred_tumor", "Low prob fraction"],
     ["mean_tumor_probability_pred_tumor", "Mean tumor prob"],
   ];
@@ -155,24 +153,19 @@
 
   function renderExperimentTables() {
     const experiments = state.dashboard.experiments || {};
-    const runColumns = [
-      { label: "Run", key: "display_name" },
-      { label: "Phase", key: "phase" },
-      { label: "Mode", key: "training_mode" },
-      { label: "Primary", render: (row) => `${row.primary_metric || "metric"}: ${formatMetricValue(row.primary_value)}` },
-      { label: "Test Dice", render: (row) => formatMetricValue(row.test_dice) },
-      { label: "Test IoU", render: (row) => formatMetricValue(row.test_iou) },
-      { label: "Conformal", render: (row) => (row.conformal?.available ? `yes (${formatMetricValue(row.conformal.target_coverage)})` : "no") },
+    const backboneColumns = [
+      { label: "Model", key: "model" }, { label: "Dice ↑", render: (row) => formatNumber(row.dice, 3) },
+      { label: "IoU ↑", render: (row) => formatNumber(row.iou, 3) }, { label: "HD95 ↓", render: (row) => formatNumber(row.hd95, 3) },
+      { label: "Precision ↑", render: (row) => formatNumber(row.precision, 3) }, { label: "Recall ↑", render: (row) => formatNumber(row.recall, 3) },
     ];
-
-    $("#runs-table").innerHTML = buildTable(runColumns, experiments.runs || []);
-    renderStackList("artifact-status", [
-      `Số artifact thực nghiệm còn lại: ${(experiments.runs || []).length}.`,
-      `Số checkpoint live hiện khả dụng: ${state.models.length}.`,
-      state.models.length
-        ? "Repo demo đang có checkpoint mới để chạy live inference."
-        : "Repo demo hiện chưa có checkpoint mới, nên live inference đang ở trạng thái chờ bổ sung artifact mới.",
-    ]);
+    const ablationColumns = [
+      { label: "Phương pháp", key: "method" }, { label: "Dice ↑", render: (row) => formatNumber(row.dice, 3) },
+      { label: "IoU ↑", render: (row) => formatNumber(row.iou, 3) }, { label: "HD95 ↓", render: (row) => formatNumber(row.hd95, 3) },
+    ];
+    $("#btxrd-backbones-table").innerHTML = buildTable(backboneColumns, experiments.btxrd_backbones || []);
+    $("#btxrd-ablation-table").innerHTML = buildTable(ablationColumns, experiments.btxrd_ablation || []);
+    $("#fracatlas-backbones-table").innerHTML = buildTable(backboneColumns, experiments.fracatlas_backbones || []);
+    renderStackList("artifact-status", experiments.notes || []);
   }
 
   function flattenImages() {
@@ -205,17 +198,19 @@
 
   function renderModelOptions() {
     const select = $("#model-select");
-    if (!state.selectedModelId && state.models.length) {
-      state.selectedModelId = state.models[0].model_id;
+    const available = state.models.filter((model) => model.available);
+    if (!state.selectedModelId && available.length) {
+      state.selectedModelId = available[0].model_id;
     }
-    select.innerHTML = state.models.length
-      ? state.models
+    select.innerHTML = available.length
+      ? available
           .map((model) => {
             const selected = model.model_id === state.selectedModelId ? "selected" : "";
             return `<option value="${escapeHtml(model.model_id)}" ${selected}>${escapeHtml(model.display_name)}</option>`;
           })
           .join("")
-      : '<option value="">Chưa có checkpoint mới</option>';
+      : '<option value="">Chưa có checkpoint/config tương thích</option>';
+    $("#run-live-segmentation").disabled = !available.length;
   }
 
   function renderResultGallery(items) {
@@ -303,8 +298,8 @@
 
     $("#case-notes").innerHTML = `
       <p><strong>Ảnh:</strong> ${escapeHtml(result.original_filename)}</p>
-      <p><strong>Checkpoint:</strong> ${escapeHtml(result.checkpoint_path)}</p>
-      <p><strong>Metadata:</strong> ${escapeHtml(JSON.stringify(result.metadata || {}))}</p>
+      <p><strong>Model:</strong> ${escapeHtml(result.model_id)}</p>
+      <p><strong>Foreground fraction:</strong> ${escapeHtml(formatMetricValue(result.metadata?.foreground_fraction))}</p>
     `;
 
     const uncertainty = result.uncertainty || {};
@@ -337,7 +332,9 @@
   async function loadDashboard() {
     state.dashboard = await fetchJson("/dashboard");
     $("#thesis-title").textContent = state.dashboard.thesis_title;
+    $("#research-disclaimer").textContent = state.dashboard.disclaimer;
     renderStackList("overview-summary", state.dashboard.overview.summary || []);
+    $("#dataset-summary").innerHTML = (state.dashboard.overview.datasets || []).map((item) => `<article class="story-card"><h3>${escapeHtml(item.name)}</h3><p class="body-copy">${escapeHtml(item.description)}</p><p class="muted-note">${escapeHtml(item.split)}</p></article>`).join("");
     renderHeroMetrics();
     renderPipeline();
   }
@@ -345,7 +342,7 @@
   async function loadModels() {
     state.models = await fetchJson("/models");
     if (!state.selectedModelId) {
-      state.selectedModelId = state.dashboard?.overview?.default_model_id || state.models[0]?.model_id || null;
+      state.selectedModelId = state.dashboard?.overview?.default_model_id || state.models.find((model) => model.available)?.model_id || null;
     }
     renderModelOptions();
     renderExperimentTables();

@@ -19,8 +19,7 @@ RUN apt-get update \
 RUN groupadd --system appuser \
     && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser
 
-COPY requirements.txt /app/requirements.txt
-COPY requirements-inference.txt /app/requirements-inference.txt
+COPY requirements.txt requirements-inference.txt /app/
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r /app/requirements.txt \
@@ -43,4 +42,4 @@ EXPOSE 4173
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
   CMD python -c "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:4173/health', timeout=3); sys.exit(0)"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:4173", "--workers", "1", "--threads", "4", "--timeout", "180", "--access-logfile", "-", "--error-logfile", "-", "backend.api:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4173", "--workers", "1", "--threads", "2", "--timeout", "180", "--access-logfile", "-", "--error-logfile", "-", "backend.api:app"]

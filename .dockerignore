@@ -1,6 +1,7 @@
 .DS_Store
 .git
 .gitignore
+.DS_Store
 .pytest_cache
 .venv
 __pycache__/
@@ -14,3 +15,5 @@ runtime_static/uploads/*
 runtime_static/results/*
 
 resources/pretrained/segformer_b0_ade_512_512/tf_model.h5
+resources/checkpoints/
+resources/configs/

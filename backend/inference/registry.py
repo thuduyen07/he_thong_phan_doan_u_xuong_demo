@@ -5,9 +5,10 @@ import importlib
 import re
 from pathlib import Path
 
+import yaml
+
 from backend.inference.contracts import PredictorSpec
 from backend.inference.runtime_paths import RESOURCES_DIR
-from runtime_src.common.io_utils import load_yaml
 
 
 PREDICTOR_CLASSES = {
@@ -22,6 +23,51 @@ def _slugify(value: str) -> str:
 STATIC_MODEL_SPECS: dict[str, PredictorSpec] = {}
 
 ALLOWED_EXPERIMENT_RUNS: dict[str, dict[str, str]] = {}
+MODEL_REGISTRY_PATH = RESOURCES_DIR / "metadata" / "models.yaml"
+
+
+def load_yaml(path: str | Path) -> dict:
+    """Read dashboard metadata without importing the PyTorch research runtime."""
+    with Path(path).open("r", encoding="utf-8") as handle:
+        payload = yaml.safe_load(handle) or {}
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected a YAML mapping at {path}")
+    return payload
+
+
+def _load_declared_models() -> list[dict[str, object]]:
+    if not MODEL_REGISTRY_PATH.exists():
+        return []
+    payload = load_yaml(str(MODEL_REGISTRY_PATH)) or {}
+    models = payload.get("models", []) if isinstance(payload, dict) else []
+    return [dict(item) for item in models if isinstance(item, dict)]
+
+
+def list_model_records() -> list[dict[str, object]]:
+    """Expose metadata without loading models or leaking server-side paths."""
+    records: list[dict[str, object]] = []
+    for item in _load_declared_models():
+        model_id = str(item.get("id", "")).strip()
+        if not model_id:
+            continue
+        checkpoint = RESOURCES_DIR.parent / str(item.get("checkpoint", ""))
+        config = RESOURCES_DIR.parent / str(item.get("config", ""))
+        enabled = bool(item.get("enabled", False))
+        available = enabled and checkpoint.is_file() and config.is_file()
+        records.append(
+            {
+                "model_id": model_id,
+                "display_name": str(item.get("display_name", model_id)),
+                "dataset": str(item.get("dataset", "generic")),
+                "architecture": str(item.get("architecture", "")),
+                "method": str(item.get("method", "")),
+                "threshold": item.get("threshold"),
+                "calibration_available": bool(str(item.get("calibration_artifact", "")).strip()),
+                "available": available,
+                "description": str(item.get("description", "")),
+            }
+        )
+    return records
 
 
 def _collect_run_dirs(root: Path) -> list[tuple[Path, str]]:

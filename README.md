@@ -1,4 +1,69 @@
-# Web Demo Pipeline Phân Đoạn U Xương
+# Hệ thống phân đoạn u xương trên ảnh X-quang
+
+> **Phiên bản hiện hành:** Đây là web demo nghiên cứu, không phải phần mềm chẩn đoán lâm sàng.
+> **Đề tài:** Xây dựng hệ thống phân đoạn u xương trên ảnh X-quang dựa trên kiến trúc transformer
+
+## 1. Giới thiệu
+
+Demo trình bày bài toán phân đoạn nhị phân vùng tổn thương trên X-quang, các kết quả thực nghiệm đã kiểm chứng, và trạng thái inference khi có artifact phù hợp.
+
+## 2. Phạm vi nghiên cứu
+
+- Không đưa ra chẩn đoán, phân loại ác tính hoặc khuyến nghị điều trị.
+- Xác suất foreground dùng sigmoid cho SegFormer binary one-channel.
+- Predictive entropy là entropy nhị phân chuẩn hóa; không phải ước lượng epistemic uncertainty.
+- CRC là cơ chế điều tiết pseudo-supervision theo rủi ro FNR đã cấu hình, không phải chứng nhận lâm sàng.
+
+## 3. Kiến trúc hệ thống
+
+Flask phục vụ frontend tĩnh, metadata kết quả và registry model. Model chỉ được lazy-load khi registry đánh dấu `enabled: true` và có đủ config/checkpoint tương ứng. Render Free mặc định chỉ chạy dashboard, tránh cài PyTorch/Transformers.
+
+## 4. Phương pháp
+
+SegFormer-B0 là backbone chính. Mean Teacher dùng EMA teacher, pseudo-mask threshold 0.5, entropy weighting và các variants Global CRC, Adaptive CRC, Boundary-Adaptive CRC. H_B là entropy trung bình trên vùng biên của pseudo-mask dự đoán, không dùng ground truth.
+
+## 5. Cấu trúc thư mục
+
+- `backend/`: Flask API, dashboard và inference service.
+- `app/`: giao diện HTML/CSS/JS.
+- `resources/metadata/models.yaml`: registry model khai báo bằng dữ liệu.
+- `resources/checkpoints/`, `resources/configs/`: artifact local, bị gitignore.
+
+## 6. Chuẩn bị checkpoint
+
+Không commit checkpoint. Chỉ enable một model khi config, checkpoint, threshold và calibration artifact (nếu có) cùng checkpoint được xác nhận. Không ghép CRC artifact từ predictor khác.
+
+## 7. Chạy local trên macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python server.py
+```
+
+Mở `http://127.0.0.1:4173`. Nếu registry không có model hợp lệ, dashboard vẫn hoạt động và live inference được vô hiệu hóa rõ ràng.
+
+## 8. Chạy Docker
+
+```bash
+docker compose up --build
+```
+
+## 9. Deploy Render Free
+
+Deploy từ Dockerfile với một Gunicorn worker và hai threads. Render Free phù hợp dashboard/static demo; CPU inference chỉ nên bật khi artifact nhỏ, startup/memory thực tế đã được kiểm tra.
+
+## 10. Thêm model mới
+
+Thêm một entry trong `resources/metadata/models.yaml`, sau đó cung cấp artifact local đúng path. Entry phải chỉ rõ dataset, architecture, method, threshold và calibration artifact checkpoint-specific khi áp dụng.
+
+## 11. Giới hạn
+
+- Không hiển thị Dice, IoU, HD95 hay FNR cho ảnh upload không có mask tham chiếu.
+- Kết quả BTXRD ablation là seed 42; CRC variants thể hiện trade-off, không phải cải thiện tuyệt đối.
+- FracAtlas là benchmark fracture, không phải dữ liệu u xương.
+- Adapter inference cũ bị coi là không tương thích với research pipeline hiện hành cho đến khi có adapter mỏng dùng đúng config/checkpoint đã xác minh.
 
 ## 1. Mục đích của hệ thống
 

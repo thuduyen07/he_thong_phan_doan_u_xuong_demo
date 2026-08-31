@@ -233,7 +233,7 @@ def _hero_metrics(runs: list[dict[str, Any]]) -> list[dict[str, str]]:
 
 
 @lru_cache(maxsize=1)
-def get_dashboard_payload() -> dict[str, Any]:
+def _legacy_dashboard_payload() -> dict[str, Any]:
     runs = _discover_runs()
 
     return {
@@ -242,7 +242,7 @@ def get_dashboard_payload() -> dict[str, Any]:
         "overview": {
             "summary": [
                 "Web demo này chỉ giữ các phần bám trực tiếp vào pipeline supervised segmentation -> mean teacher -> uncertainty -> adaptive CRC.",
-                "Các checkpoint và artifact thực nghiệm của phương pháp cũ đã được gỡ khỏi repo demo này.",
+                # "Các checkpoint và artifact thực nghiệm của phương pháp cũ đã được gỡ khỏi repo demo này.",
                 "Live lab chỉ hoạt động khi repo được bổ sung checkpoint mới phù hợp với pipeline hiện hành.",
             ],
             "sample_image_count": _count_default_images(),
@@ -256,4 +256,74 @@ def get_dashboard_payload() -> dict[str, Any]:
         "experiments": {
             "runs": runs,
         },
+    }
+
+
+# These values are the verified thesis tables exported from the current research
+# repository. They deliberately do not depend on checkpoint discovery at startup.
+_BTXRD_BACKBONES = [
+    {"model": "U-Net", "dice": 0.444, "iou": 0.344, "hd95": 127.869, "precision": 0.479, "recall": 0.557},
+    {"model": "Swin-UNet", "dice": 0.508, "iou": 0.418, "hd95": 76.908, "precision": 0.556, "recall": 0.544},
+    {"model": "EfficientViT", "dice": 0.541, "iou": 0.450, "hd95": 54.525, "precision": 0.635, "recall": 0.542},
+    {"model": "YOLOv8-Seg", "dice": 0.494, "iou": 0.420, "hd95": 107.454, "precision": 0.499, "recall": 0.521},
+    {"model": "SegFormer-B0", "dice": 0.587, "iou": 0.485, "hd95": 74.833, "precision": 0.602, "recall": 0.658},
+]
+_BTXRD_ABLATION = [
+    {"method": "Supervised", "dice": 0.587, "iou": 0.485, "hd95": 74.833},
+    {"method": "Mean Teacher", "dice": 0.592, "iou": 0.488, "hd95": 76.705},
+    {"method": "Mean Teacher + entropy", "dice": 0.593, "iou": 0.490, "hd95": 64.621},
+    {"method": "Global CRC", "dice": 0.570, "iou": 0.477, "hd95": 67.772},
+    {"method": "Adaptive CRC", "dice": 0.562, "iou": 0.466, "hd95": 61.290},
+    {"method": "Boundary-Adaptive CRC", "dice": 0.582, "iou": 0.481, "hd95": 68.455},
+]
+_FRACATLAS_BACKBONES = [
+    {"model": "U-Net", "dice": 0.311, "iou": 0.230, "hd95": 105.657, "precision": 0.357, "recall": 0.316},
+    {"model": "Swin-UNet", "dice": 0.401, "iou": 0.300, "hd95": 63.286, "precision": 0.442, "recall": 0.450},
+    {"model": "EfficientViT", "dice": 0.326, "iou": 0.242, "hd95": 91.140, "precision": 0.375, "recall": 0.345},
+    {"model": "YOLOv8-Seg", "dice": 0.281, "iou": 0.215, "hd95": 69.767, "precision": 0.282, "recall": 0.301},
+    {"model": "SegFormer-B0", "dice": 0.457, "iou": 0.350, "hd95": 50.201, "precision": 0.476, "recall": 0.510},
+]
+
+
+def get_dashboard_payload() -> dict[str, Any]:
+    live_models = available_models()
+    return {
+        "thesis_title": "Xây dựng hệ thống phân đoạn u xương trên ảnh X-quang dựa trên kiến trúc Transformer",
+        "disclaimer": "Kết quả chỉ phục vụ minh họa nghiên cứu và hậu kiểm mô hình; không phải kết luận chẩn đoán lâm sàng.",
+        "overview": {
+            "summary": [
+                "Bài toán là phân đoạn nhị phân vùng tổn thương trên ảnh X-quang, không phải chẩn đoán hoặc phân loại ác tính.",
+                "SegFormer-B0 là kiến trúc chính; Mean Teacher, entropy và các CRC variants là các nhánh thực nghiệm có trade-off riêng.",
+                "Với đầu ra một channel, foreground probability dùng sigmoid và predictive entropy nhị phân được chuẩn hóa về [0, 1].",
+            ],
+            "datasets": [
+                {"name": "BTXRD", "description": "3.746 ảnh X-quang u xương có nhãn (1.867 dương tính, 1.879 âm tính).", "split": "seed 42, chia theo mẫu; train 2.247, val/dev/final calibration mỗi tập 375, test 374."},
+                {"name": "FracAtlas", "description": "Benchmark phân đoạn gãy xương, không phải bộ dữ liệu u xương.", "split": "seed 42, chia theo mẫu; train 2.414, val 403, dev calibration 403, final calibration 402, test 402."},
+            ],
+            "default_model_id": live_models[0]["model_id"] if live_models else None,
+        },
+        "pipeline": {
+            "modules": [
+                {"title": "Supervised SegFormer-B0", "summary": "BCEWithLogits + Dice trên mask tham chiếu; FracAtlas có recipe positive weight 5.6 riêng.", "details": ["Một logit foreground", "sigmoid ở binary path", "checkpoint selection là run-specific"]},
+                {"title": "EMA Mean Teacher", "summary": "Teacher EMA sinh pseudo-mask từ weak view; student học strong view.", "details": ["Hard threshold 0.5", "teacher không nhận gradient", "EMA sau optimizer step"]},
+                {"title": "Predictive entropy", "summary": "H_G là mean entropy toàn ảnh; H_B là mean entropy trên vùng biên pseudo-mask dự đoán.", "details": ["H(p)/log(2)", "không phải epistemic uncertainty", "boundary không dùng ground truth"]},
+                {"title": "CRC variants", "summary": "Global/Adaptive/Boundary-Adaptive CRC là variants kiểm soát rủi ro FNR cho pseudo-supervision.", "details": ["target FNR 0.010 trong config hiện hành", "reliable/ambiguous/rejected", "không tự động tối ưu Dice"]},
+            ],
+            "formulas": [
+                {"label": "Binary probability", "value": "p = sigmoid(z)"},
+                {"label": "Predictive entropy", "value": "H(p) = [-p log p - (1-p) log(1-p)] / log(2)"},
+                {"label": "Pseudo-label weight", "value": "w = w_conformal × clamp(1 - H, entropy_floor, 1) × w_boundary (when enabled)"},
+            ],
+        },
+        "experiments": {
+            "btxrd_backbones": _BTXRD_BACKBONES,
+            "btxrd_ablation": _BTXRD_ABLATION,
+            "fracatlas_backbones": _FRACATLAS_BACKBONES,
+            "notes": [
+                "BTXRD ablation dùng seed 42: Mean Teacher + entropy có Dice/IoU cao nhất; Adaptive CRC có HD95 thấp nhất.",
+                "CRC variants biểu diễn trade-off, không phải chuỗi cải thiện cộng dồn.",
+                "Không hiển thị FracAtlas ablation vì chưa có bảng final đã kiểm chứng cùng protocol.",
+            ],
+        },
+        "models": {"available": len(live_models)},
     }

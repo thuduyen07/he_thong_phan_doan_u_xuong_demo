@@ -10,13 +10,12 @@
     <div class="page-shell">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Pipeline Demo</p>
-          <h1>Web demo pipeline thực nghiệm phân đoạn u xương</h1>
+          <p class="eyebrow">Research Demonstration</p>
+          <h1>Phân đoạn vùng tổn thương trên ảnh X-quang</h1>
           <p class="hero-text">
-            Giao diện này chỉ giữ ba phần cốt lõi của pipeline: mô tả kiến trúc
-            supervised đến semi-supervised, dashboard kết quả thực nghiệm đọc từ
-            artifact thật, và khu vực upload ảnh mới để chạy thử inference kèm
-            uncertainty và conformal hậu kiểm.
+            Bản trình diễn luận văn về phân đoạn nhị phân, uncertainty dự báo và
+            các biến thể kiểm soát rủi ro. Kết quả chỉ hỗ trợ hậu kiểm nghiên cứu,
+            không phải kết luận chẩn đoán lâm sàng.
           </p>
           <div class="hero-actions">
             <a href="#live-lab" class="primary-link">Chạy thử trên ảnh mới</a>
@@ -29,8 +28,8 @@
       <main class="content-grid">
         <section class="panel spotlight-panel" id="system-overview">
           <div class="panel-heading">
-            <p class="section-tag">01. Pipeline</p>
-            <h2>Kiến trúc pipeline và lịch thực nghiệm</h2>
+            <p class="section-tag">01. Tổng quan</p>
+            <h2>Phạm vi và phương pháp nghiên cứu</h2>
           </div>
           <div class="overview-grid">
             <div class="story-card">
@@ -46,35 +45,36 @@
               <div id="formula-list" class="formula-list"></div>
             </div>
           </div>
+          <div id="dataset-summary" class="overview-grid"></div>
           <div class="pipeline-strip" id="pipeline-strip"></div>
           <div class="schedule-grid" id="schedule-grid"></div>
         </section>
 
         <section class="panel" id="experiments">
           <div class="panel-heading">
-            <p class="section-tag">02. Experiments</p>
-            <h2>Kết quả quá trình thực nghiệm</h2>
+            <p class="section-tag">02. Kết quả thực nghiệm</p>
+            <h2>Kết quả đã kiểm chứng</h2>
           </div>
           <div class="results-grid two-up">
             <div class="result-card">
-              <h3>Artifact thực nghiệm còn lại trong repo demo</h3>
-              <p class="muted-note">
-                Danh sách này được đọc trực tiếp từ `resources/outputs` sau khi đã gỡ
-                các checkpoint và artifact của phương pháp cũ.
-              </p>
-              <div id="runs-table"></div>
+              <h3>BTXRD: backbone comparison</h3>
+              <div id="btxrd-backbones-table"></div>
             </div>
             <div class="result-card">
-              <h3>Trạng thái sau khi dọn artifact cũ</h3>
-              <div id="artifact-status" class="stack-list"></div>
+              <h3>BTXRD: SegFormer-B0 ablation</h3>
+              <div id="btxrd-ablation-table"></div>
             </div>
+          </div>
+          <div class="results-grid two-up">
+            <div class="result-card"><h3>FracAtlas: backbone comparison</h3><div id="fracatlas-backbones-table"></div></div>
+            <div class="result-card"><h3>Diễn giải</h3><div id="artifact-status" class="stack-list"></div></div>
           </div>
         </section>
 
         <section class="panel" id="live-lab">
           <div class="panel-heading">
-            <p class="section-tag">03. Live Lab</p>
-            <h2>Thử nghiệm với dữ liệu mới người dùng tải lên</h2>
+            <p class="section-tag">03. Demo phân đoạn</p>
+            <h2>Thử nghiệm trên ảnh X-quang</h2>
           </div>
           <div class="lab-grid">
             <aside class="lab-sidebar">
@@ -108,7 +108,7 @@
                   Chạy segmentation
                 </button>
                 <p class="muted-note">
-                  Nếu chưa có checkpoint mới trong repo demo thì danh sách model sẽ trống và live inference sẽ tạm thời không chạy được.
+                  Model chỉ khả dụng khi checkpoint, config và artifact hiệu chỉnh tương ứng được khai báo phía server. Ảnh upload không có Dice/IoU/HD95 vì không có mask tham chiếu.
                 </p>
               </div>
             </aside>
@@ -138,22 +138,19 @@
                 <section class="uncertainty-panel hidden" id="uncertainty-panel">
                   <div class="uncertainty-header">
                     <div>
-                      <p class="section-tag">Post-hoc uncertainty</p>
-                      <h3>Đánh giá uncertainty và conformal</h3>
+                      <p class="section-tag">Predictive uncertainty</p>
+                      <h3>Uncertainty và reliability metadata</h3>
                     </div>
                     <p class="muted-note" id="uncertainty-note"></p>
                   </div>
                   <div class="uncertainty-section">
-                    <h4>Softmax-derived uncertainty</h4>
+                    <h4>Uncertainty từ xác suất phân đoạn</h4>
                     <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
                     <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
                   </div>
                   <div class="uncertainty-section hidden" id="conformal-section">
                     <div class="uncertainty-subheader">
-                      <div>
-                        <p class="section-tag">Conformal prediction</p>
-                        <h4>Prediction set cho segmentation</h4>
-                      </div>
+                      <div><p class="section-tag">Risk control</p><h4>Artifact hiệu chỉnh checkpoint-specific</h4></div>
                       <p class="muted-note" id="conformal-note"></p>
                     </div>
                     <div class="uncertainty-score-grid" id="conformal-score-grid"></div>
@@ -164,7 +161,20 @@
             </div>
           </div>
         </section>
+
+        <section class="panel" id="guide">
+          <div class="panel-heading">
+            <p class="section-tag">04. Hướng dẫn / Giới thiệu</p>
+            <h2>Sử dụng demo có trách nhiệm</h2>
+          </div>
+          <div class="overview-grid">
+            <article class="story-card"><h3>1. Chọn bối cảnh</h3><p class="body-copy">BTXRD là dữ liệu u xương; FracAtlas là benchmark fracture và chỉ dùng để đánh giá khả năng khái quát hóa.</p></article>
+            <article class="story-card"><h3>2. Chạy inference</h3><p class="body-copy">Upload ảnh, sau đó chọn model chỉ khi registry báo khả dụng. Server không nhận đường dẫn checkpoint từ trình duyệt.</p></article>
+            <article class="story-card"><h3>3. Đọc kết quả</h3><p class="body-copy">Mask, overlay, xác suất và uncertainty là output nghiên cứu. Dice/IoU/HD95 chỉ có ý nghĩa khi có mask tham chiếu.</p></article>
+          </div>
+        </section>
       </main>
+      <footer class="panel"><p class="muted-note" id="research-disclaimer"></p></footer>
     </div>
 
     <script src="./app.js"></script>

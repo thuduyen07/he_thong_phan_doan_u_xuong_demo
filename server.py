@@ -17,7 +17,7 @@ def main() -> None:
     app.run(
         host=args.host,
         port=args.port,
-        debug=os.getenv("DEMO_FLASK_DEBUG", "0") == "1",
+        debug=False,
         use_reloader=False,
     )
 

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
 
 from backend.dashboard import get_dashboard_payload
 from backend.inference.service import (
@@ -19,10 +16,9 @@ from backend.inference.service import (
 )
 
 
-start_default_predictor_warmup()
-
 app = Flask(__name__)
-CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+start_default_predictor_warmup()
 
 
 @app.get("/health")
@@ -40,9 +36,19 @@ def models():
     return jsonify(available_models())
 
 
+@app.get("/api/models")
+def api_models():
+    return jsonify(available_models())
+
+
 @app.get("/dashboard")
 def dashboard():
     return jsonify(get_dashboard_payload())
+
+
+@app.get("/api/experiments")
+def api_experiments():
+    return jsonify(get_dashboard_payload()["experiments"])
 
 
 @app.get("/get_images")
@@ -96,6 +102,17 @@ def app_router(filename: str):
     return send_from_directory(APP_DIR, "index.html")
 
 
+@app.errorhandler(413)
+def upload_too_large(_error):
+    return jsonify({"error": "Ảnh tải lên vượt giới hạn 10 MB."}), 413
+
+
+@app.errorhandler(ValueError)
+def invalid_request(error):
+    return jsonify({"error": str(error)}), 400
+
+
 @app.errorhandler(Exception)
 def handle_error(error):
-    return jsonify({"error": str(error)}), 500
+    app.logger.exception("Unhandled demo error")
+    return jsonify({"error": "Không thể xử lý yêu cầu. Hãy kiểm tra ảnh hoặc cấu hình model."}), 500
