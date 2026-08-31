@@ -2,6 +2,24 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from pathlib import Path
+
+
+def _require_activated_virtualenv() -> None:
+    """Catch ``python server.py`` resolving outside an activated project venv."""
+    configured_venv = os.getenv("VIRTUAL_ENV")
+    if not configured_venv:
+        return
+    expected = Path(configured_venv).resolve()
+    if Path(sys.prefix).resolve() != expected:
+        raise RuntimeError(
+            "Server was started with a different Python interpreter than VIRTUAL_ENV. "
+            "Run `./dev_scripts/run_local.sh` instead."
+        )
+
+
+_require_activated_virtualenv()
 
 from backend.api import app
 

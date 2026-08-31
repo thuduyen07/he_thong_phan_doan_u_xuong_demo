@@ -1,42 +1,38 @@
 from __future__ import annotations
 
-import json
 import threading
 
 import numpy as np
 from PIL import Image
 from pathlib import Path
-import yaml
+import torch.nn.functional as F
 
 from backend.inference.contracts import PredictionArtifacts
 from backend.inference.device import resolve_inference_device
-from backend.inference.image_ops import blend_rgb, gray_to_rgb, resize_grayscale
+from backend.inference.image_ops import blend_rgb, gray_to_rgb
 from backend.inference.predictors.base import SegmentationPredictor
 from backend.inference.runtime_paths import RESOURCES_DIR, ensure_runtime_paths
 
 ensure_runtime_paths()
 
-from runtime_src.common.uncertainty import (  # noqa: E402
-    build_binary_conformal_region_maps,
-    binary_boundary_band,
-    binary_probabilities_from_logits,
-    sanitize_float,
-    summarize_binary_conformal_regions,
-    conformal_quantile_threshold,
-    masked_fraction_below,
-    masked_mean,
-    masked_percentile,
-    max_softmax_confidence,
-    one_minus_margin,
-    predictive_entropy,
-    softmax_probabilities,
-)
+from runtime_src.common.io_utils import load_yaml  # noqa: E402
 from runtime_src.seg.models import (  # noqa: E402
     build_segmentation_model,
     extract_logits,
+    get_num_classes,
     get_model_type,
 )
 import torch  # noqa: E402
+
+
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+PIL_RESAMPLING = getattr(Image, "Resampling", Image)
+PIL_RESAMPLE_ALIASES = {
+    "nearest": PIL_RESAMPLING.NEAREST,
+    "bilinear": PIL_RESAMPLING.BILINEAR,
+    "bicubic": PIL_RESAMPLING.BICUBIC,
+}
 
 
 class TorchSegmentationPredictor(SegmentationPredictor):
@@ -48,14 +44,15 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         self._resolve_model_paths()
         self.device = resolve_inference_device(str(self.cfg.get("device", "cpu")))
         self.img_size = int(self.cfg["img_size"])
-        self.num_classes = int(self.cfg["num_classes"])
+        self.num_classes = get_num_classes(self.cfg)
         self.model_type = get_model_type(self.cfg)
-        self._conformal_profile = self._load_conformal_profile()
+        self._resolve_inference_cfg()
         self._model = None
         self._model_lock = threading.Lock()
 
     def _resolve_model_paths(self) -> None:
-        local_model_path = self.cfg.get("local_model_path")
+        model_cfg = dict(self.cfg.get("model", {}))
+        local_model_path = model_cfg.get("local_model_path", self.cfg.get("local_model_path"))
         if not local_model_path:
             return
 
@@ -76,9 +73,41 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                     break
             if resolved is None:
                 resolved = (RESOURCES_DIR / local_model_path).resolve()
-        self.cfg["local_model_path"] = str(resolved)
+        model_cfg["local_model_path"] = str(resolved)
+        self.cfg["model"] = model_cfg
+
+    def _resolve_inference_cfg(self) -> None:
+        if bool(dict(self.cfg.get("patch_forward", {})).get("enabled", False)):
+            raise ValueError("The packaged web adapter does not support research patch-forward inference yet.")
+        data_cfg = dict(self.cfg.get("data", {}))
+        image_size_mode = str(data_cfg.get("image_size_mode", "fixed")).strip().lower()
+        if image_size_mode not in {"fixed", "resize"}:
+            raise ValueError("Live inference requires the same fixed-resize input mode as validation.")
+        interpolation = str(data_cfg.get("resize_interpolation", "nearest")).strip().lower()
+        if interpolation not in PIL_RESAMPLE_ALIASES:
+            raise ValueError(f"Unsupported resize interpolation: {interpolation}")
+        self.resize_interpolation = PIL_RESAMPLE_ALIASES[interpolation]
+
+        normalization_cfg = dict(self.cfg.get("normalization", {}))
+        self.normalization_enabled = bool(normalization_cfg.get("enabled", True))
+        self.normalization_mean = torch.tensor(
+            normalization_cfg.get("mean", IMAGENET_MEAN), dtype=torch.float32
+        ).view(3, 1, 1)
+        self.normalization_std = torch.tensor(
+            normalization_cfg.get("std", IMAGENET_STD), dtype=torch.float32
+        ).view(3, 1, 1)
+        if torch.any(self.normalization_std <= 0):
+            raise ValueError("Normalization standard deviations must be positive.")
+        self.binary_threshold = float(self.cfg.get("binary_threshold", 0.5))
+        self.threshold_source = "config.binary_threshold" if "binary_threshold" in self.cfg else "research_default"
+        self.uncertainty_threshold = float(dict(self.cfg.get("uncertainty_weighting", {})).get("analysis_threshold", 0.5))
+        self.boundary_enabled = bool(dict(self.cfg.get("boundary", {})).get("enabled", False))
+        self.boundary_radius = int(dict(self.cfg.get("boundary", {})).get("radius", 1))
+        if bool(dict(self.cfg.get("conformal", {})).get("enabled", False)):
+            raise ValueError("Live CRC inference requires a packaged research CRC adapter and matching state artifact.")
 
     def _load_model(self):
+        # Mirrors research ``load_model_weights`` student-checkpoint precedence.
         if self._model is not None:
             return self._model
 
@@ -87,11 +116,18 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                 return self._model
 
             checkpoint = torch.load(self.spec.checkpoint_path, map_location="cpu", weights_only=False)
-            state_dict = checkpoint["model"] if isinstance(checkpoint, dict) and "model" in checkpoint else checkpoint
+            state_dict = (
+                checkpoint.get("student_state_dict")
+                if isinstance(checkpoint, dict) and "student_state_dict" in checkpoint
+                else checkpoint.get("model") if isinstance(checkpoint, dict) and "model" in checkpoint else checkpoint
+            )
             inferred_num_classes = self._infer_num_classes_from_state_dict(state_dict)
             if inferred_num_classes is not None and inferred_num_classes != self.num_classes:
                 self.num_classes = inferred_num_classes
                 self.cfg["num_classes"] = inferred_num_classes
+                model_cfg = dict(self.cfg.get("model", {}))
+                model_cfg["num_classes"] = inferred_num_classes
+                self.cfg["model"] = model_cfg
 
             model, _ = build_segmentation_model(self.cfg)
             model = model.to(self.device)
@@ -104,6 +140,8 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                 for key, value in state_dict.items()
                 if key in model_state_dict and tuple(model_state_dict[key].shape) == tuple(value.shape)
             }
+            if not compatible_state_dict:
+                raise RuntimeError("Checkpoint did not contain compatible model weights.")
             model.load_state_dict(compatible_state_dict, strict=False)
             model.eval()
             self._model = model
@@ -234,172 +272,92 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             remapped[new_key] = value
         return remapped
 
-    def _prepare_image(self, image: Image.Image):
-        gray = np.array(image.convert("L"))
-        metadata = {
-            "original_shape_hw": [int(gray.shape[0]), int(gray.shape[1])],
-            "processed_shape_hw": [int(gray.shape[0]), int(gray.shape[1])],
-        }
-        return gray, gray, metadata
-
-    def _tumor_class_id(self) -> int:
-        return 1 if self.num_classes <= 2 else self.num_classes - 1
-
-    def _conformal_candidate_paths(self) -> list[Path]:
-        return [
-            RESOURCES_DIR / "conformal" / f"{self.spec.model_id}.json",
-            self.spec.checkpoint_path.parent / "conformal_calibration.json",
-            self.spec.checkpoint_path.parent / "conformal" / "conformal_calibration.json",
-        ]
-
-    def _load_conformal_profile(self) -> dict[str, object] | None:
-        for candidate in self._conformal_candidate_paths():
-            if not candidate.exists():
-                continue
-            try:
-                payload = json.loads(candidate.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if not isinstance(payload, dict):
-                continue
-            payload["artifact_path"] = str(candidate)
-            return payload
-        return None
-
-    def _compute_uncertainty_outputs(
-        self,
-        *,
-        probs: np.ndarray,
-        pred_mask: np.ndarray,
-        boundary_width: int = 2,
-        confidence_threshold: float = 0.75,
-    ) -> tuple[dict[str, float | int | bool | None], dict[str, np.ndarray]]:
-        tumor_class_id = self._tumor_class_id()
-        pred_tumor = pred_mask == tumor_class_id
-        boundary_mask = binary_boundary_band(pred_tumor, width=boundary_width)
-        entropy_map = predictive_entropy(probs, class_axis=0, normalize=True)
-        confidence_map = max_softmax_confidence(probs, class_axis=0)
-        one_minus_msp_map = np.clip(1.0 - confidence_map, a_min=0.0, a_max=1.0)
-        one_minus_margin_map = one_minus_margin(probs, class_axis=0)
-        tumor_probability_map = np.clip(probs[tumor_class_id], a_min=0.0, a_max=1.0)
-
-        summary = {
-            "available": True,
-            "tumor_class_id": int(tumor_class_id),
-            "predicted_tumor_pixels": int(pred_tumor.sum()),
-            "predicted_tumor_present": bool(pred_tumor.any()),
-            "mean_predictive_entropy_pred_tumor": sanitize_float(masked_mean(entropy_map, pred_tumor)),
-            "p90_predictive_entropy_pred_tumor": sanitize_float(
-                masked_percentile(entropy_map, pred_tumor, 90.0)
-            ),
-            "mean_predictive_entropy_boundary_tumor": sanitize_float(
-                masked_mean(entropy_map, boundary_mask)
-            ),
-            "mean_one_minus_msp_pred_tumor": sanitize_float(masked_mean(one_minus_msp_map, pred_tumor)),
-            "mean_one_minus_margin_pred_tumor": sanitize_float(
-                masked_mean(one_minus_margin_map, pred_tumor)
-            ),
-            "low_tumor_probability_fraction_pred_tumor": sanitize_float(
-                masked_fraction_below(tumor_probability_map, pred_tumor, confidence_threshold)
-            ),
-            "mean_tumor_probability_pred_tumor": sanitize_float(masked_mean(tumor_probability_map, pred_tumor)),
-        }
-        maps = {
-            "predictive_entropy": entropy_map.astype(np.float32),
-            "one_minus_msp": one_minus_msp_map.astype(np.float32),
-            "tumor_probability": tumor_probability_map.astype(np.float32),
-        }
-        return summary, maps
-
-    def _compute_conformal_outputs(
-        self,
-        *,
-        probs: np.ndarray,
-    ) -> tuple[dict[str, object] | None, dict[str, np.ndarray]]:
-        profile = self._conformal_profile
-        if not profile:
-            return None, {}
-
-        tumor_class_id = self._tumor_class_id()
-        alpha = float(profile.get("alpha", 0.1))
-        lambda_threshold = profile.get("lambda_threshold")
-        if lambda_threshold is None:
-            probability_floor = profile.get("probability_floor")
-            if probability_floor is not None:
-                lambda_threshold = 1.0 - float(probability_floor)
-        if lambda_threshold is None:
-            calibration_scores = profile.get("calibration_scores")
-            if calibration_scores:
-                lambda_threshold = conformal_quantile_threshold(
-                    np.asarray(calibration_scores, dtype=np.float64),
-                    alpha=alpha,
-                )
-        if lambda_threshold is None:
-            return {
-                "available": False,
-                "reason": "missing_lambda_threshold",
-                "artifact_path": str(profile.get("artifact_path", "")),
-            }, {}
-
-        region_maps = build_binary_conformal_region_maps(
-            probs,
-            lambda_threshold=float(lambda_threshold),
-            tumor_class_id=tumor_class_id,
-            class_axis=0,
+    def _prepare_validation_tensor(self, image: Image.Image) -> tuple[np.ndarray, torch.Tensor]:
+        """Mirror research ``SegDataset.__getitem__`` for fixed-size validation inference."""
+        original_gray = np.asarray(image.convert("L"), dtype=np.uint8)
+        resized = Image.fromarray(original_gray, mode="L").resize(
+            (self.img_size, self.img_size), resample=self.resize_interpolation
         )
-        summary = summarize_binary_conformal_regions(
-            region_maps,
-            alpha=alpha,
-            lambda_threshold=float(lambda_threshold),
-            calibration_size=profile.get("calibration_size"),
-            metadata={
-                "method": profile.get("method", "split_conformal_prediction_sets"),
-                "score_name": profile.get("score_name", "one_minus_true_class_probability"),
-                "source_split": profile.get("source_split", "val"),
-                "artifact_path": profile.get("artifact_path", ""),
-                "empirical_coverage": profile.get("empirical_coverage"),
-                "coverage_scope": profile.get("coverage_scope", "pixelwise"),
-            },
-        )
-        maps = {
-            "conformal_confident_tumor": region_maps["sure_tumor"].astype(np.float32),
-            "conformal_outer_tumor": region_maps["outer_tumor"].astype(np.float32),
-            "conformal_uncertain": region_maps["uncertain"].astype(np.float32),
-        }
-        return summary, maps
+        values = np.asarray(resized, dtype=np.float32) / 255.0
+        tensor = torch.from_numpy(values).unsqueeze(0).repeat(3, 1, 1)
+        if self.normalization_enabled:
+            tensor = (tensor - self.normalization_mean) / self.normalization_std
+        return original_gray, tensor.unsqueeze(0).to(self.device)
 
-    def _predict_mask(
-        self,
-        processed: np.ndarray,
-    ) -> tuple[
-        np.ndarray,
-        dict[str, float | int | bool | None],
-        dict[str, np.ndarray],
-        dict[str, object] | None,
-        dict[str, np.ndarray],
-    ]:
-        resized = resize_grayscale(processed, self.img_size)
-        arr = resized.astype(np.float32) / 255.0
-        x = torch.from_numpy(arr).unsqueeze(0).repeat(3, 1, 1).unsqueeze(0).to(self.device)
+    @staticmethod
+    def _compute_binary_entropy(probability: torch.Tensor) -> torch.Tensor:
+        clamped = probability.clamp(min=1e-6, max=1.0 - 1e-6)
+        entropy = -(clamped * torch.log(clamped) + (1.0 - clamped) * torch.log(1.0 - clamped))
+        return torch.where(
+            (probability <= 0.0) | (probability >= 1.0),
+            torch.zeros_like(entropy),
+            entropy,
+        ) / np.log(2.0)
+
+    @staticmethod
+    def _build_predicted_boundary(mask: torch.Tensor, *, radius: int) -> torch.Tensor:
+        if not mask.any():
+            return torch.zeros_like(mask, dtype=torch.bool)
+        safe_radius = max(1, int(radius))
+        binary_mask = mask.float().unsqueeze(1)
+        eroded = 1.0 - F.max_pool2d(
+            1.0 - binary_mask,
+            kernel_size=(2 * safe_radius) + 1,
+            stride=1,
+            padding=safe_radius,
+        )
+        return torch.logical_xor(mask, eroded[:, 0] > 0.5)
+
+    def _predict_research_semantics(
+        self, tensor: torch.Tensor
+    ) -> tuple[np.ndarray, dict[str, object], dict[str, np.ndarray]]:
+        # Mirrors evaluation's logits resize, pseudo-mask, and entropy semantics.
         model = self._load_model()
-        with torch.no_grad():
-            logits = extract_logits(model, x, self.model_type)
-            logits = torch.nn.functional.interpolate(
-                logits,
-                size=(processed.shape[0], processed.shape[1]),
-                mode="bilinear",
-                align_corners=False,
-            )
-            logits_np = logits.squeeze(0).detach().cpu().numpy()
-            if logits.shape[1] == 1:
-                probs = binary_probabilities_from_logits(logits_np)
-                pred = (probs[1] > 0.5).astype(np.uint8)
-            else:
-                probs = softmax_probabilities(logits_np, class_axis=0)
-                pred = np.argmax(probs, axis=0).astype(np.uint8)
-        uncertainty_summary, uncertainty_maps = self._compute_uncertainty_outputs(probs=probs, pred_mask=pred)
-        conformal_summary, conformal_maps = self._compute_conformal_outputs(probs=probs)
-        return pred, uncertainty_summary, uncertainty_maps, conformal_summary, conformal_maps
+        with torch.inference_mode():
+            logits = extract_logits(model, tensor, self.model_type)
+            if logits.shape[-2:] != tensor.shape[-2:]:
+                logits = F.interpolate(logits, size=tensor.shape[-2:], mode="bilinear", align_corners=False).contiguous()
+            if self.num_classes != 1:
+                raise ValueError("The packaged research adapter currently supports binary SegFormer outputs only.")
+            probability = torch.sigmoid(logits[:, :1].contiguous())
+            mask = (probability[:, 0] >= self.binary_threshold).to(dtype=torch.uint8)
+            entropy = self._compute_binary_entropy(probability[:, 0])
+            boundary_entropy = None
+            if self.boundary_enabled:
+                boundary = self._build_predicted_boundary(mask > 0, radius=self.boundary_radius)
+                boundary_entropy = (entropy * boundary.float()).sum() / boundary.float().sum().clamp_min(1e-6)
+
+            mask_map = mask[0].detach().cpu().numpy().astype(np.uint8)
+            probability_map = probability[0, 0].detach().cpu().numpy().astype(np.float32)
+            entropy_map = entropy[0].detach().cpu().numpy().astype(np.float32)
+            summary = {
+                "available": True,
+                "global_entropy": float(entropy.mean().item()),
+                "boundary_entropy": None if boundary_entropy is None else float(boundary_entropy.item()),
+                "boundary_available": self.boundary_enabled,
+                "uncertain_pixel_ratio": float((entropy >= self.uncertainty_threshold).float().mean().item()),
+                "predicted_tumor_ratio": float(mask.float().mean().item()),
+                "mean_tumor_probability": float(probability.mean().item()),
+            }
+        return mask_map, summary, {"predictive_entropy": entropy_map, "tumor_probability": probability_map}
+
+    @staticmethod
+    def _resize_mask_for_display(mask: np.ndarray, shape_hw: tuple[int, int]) -> np.ndarray:
+        return np.asarray(
+            Image.fromarray(mask.astype(np.uint8), mode="L").resize(
+                (shape_hw[1], shape_hw[0]), resample=PIL_RESAMPLING.NEAREST
+            ),
+            dtype=np.uint8,
+        )
+
+    @staticmethod
+    def _resize_map_for_display(values: np.ndarray, shape_hw: tuple[int, int]) -> np.ndarray:
+        return np.asarray(
+            Image.fromarray(values.astype(np.float32), mode="F").resize(
+                (shape_hw[1], shape_hw[0]), resample=PIL_RESAMPLING.BILINEAR
+            ),
+            dtype=np.float32,
+        )
 
     def _class_labels(self) -> dict[str, str]:
         if self.num_classes <= 1:
@@ -418,24 +376,28 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         return colored
 
     def predict(self, image: Image.Image) -> PredictionArtifacts:
-        original_gray, processed, prep_metadata = self._prepare_image(image)
-        pred_mask, uncertainty_summary, uncertainty_maps, conformal_summary, conformal_maps = self._predict_mask(processed)
+        original_gray, tensor = self._prepare_validation_tensor(image)
+        evaluation_mask, uncertainty_summary, uncertainty_maps = self._predict_research_semantics(tensor)
+        pred_mask = self._resize_mask_for_display(evaluation_mask, original_gray.shape)
 
         original_rgb = gray_to_rgb(original_gray)
         color_mask = self._colorize_mask(pred_mask)
         overlay = blend_rgb(original_rgb, color_mask, alpha=0.35)
 
         extra_metadata = {
-            **prep_metadata,
             "foreground_pixels": int((pred_mask > 0).sum()),
+            "foreground_fraction": float((pred_mask > 0).mean()),
             "class_labels": self._class_labels(),
             "model_type": self.model_type,
+            "threshold": self.binary_threshold,
+            "threshold_source": self.threshold_source,
+            "evaluation_shape_hw": [self.img_size, self.img_size],
             "uncertainty_summary": uncertainty_summary,
-            "conformal_summary": conformal_summary,
+            "conformal_summary": None,
         }
         auxiliary_maps = {
-            **uncertainty_maps,
-            **conformal_maps,
+            name: self._resize_map_for_display(values, original_gray.shape)
+            for name, values in uncertainty_maps.items()
         }
         return PredictionArtifacts(
             mask=pred_mask,

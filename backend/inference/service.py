@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+import yaml
 
 from backend.inference.image_ops import blend_rgb, colorize_heatmap, save_grayscale_png, save_rgb_png
 from backend.inference.registry import build_predictor, list_model_records, list_model_specs
@@ -21,6 +22,8 @@ RESULT_DIR = RUNTIME_STATIC_DIR / "results"
 MANIFEST_PATH = RUNTIME_STATIC_DIR / "upload_manifest.json"
 PATIENT_LABELS_PATH = RESOURCES_DIR / "metadata" / "patient_with_labels.csv"
 DEFAULT_DEMO_IMAGE_DIR = APP_DIR / "assets" / "cases" / "original"
+SAMPLE_DIR = RESOURCES_DIR / "samples"
+SAMPLE_MANIFEST_PATH = SAMPLE_DIR / "samples.yaml"
 ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 PREDICTOR_CACHE: dict[str, dict[str, object]] = {}
 PREDICTOR_CACHE_LOCK = threading.Lock()
@@ -129,19 +132,32 @@ def list_uploaded_images() -> list[dict]:
 
 
 def list_default_demo_images() -> list[dict]:
-    if not DEFAULT_DEMO_IMAGE_DIR.exists():
+    if not SAMPLE_MANIFEST_PATH.exists():
         return []
-    return [
-        {
-            "id": f"default:{path.name}",
-            "filename": path.name,
-            "stored_name": path.name,
-            "image_url": f"/app/assets/cases/original/{path.name}",
-            "source": "default",
-        }
-        for path in sorted(DEFAULT_DEMO_IMAGE_DIR.iterdir())
-        if path.is_file() and path.suffix.lower() in ALLOWED_IMAGE_SUFFIXES
-    ]
+    payload = yaml.safe_load(SAMPLE_MANIFEST_PATH.read_text(encoding="utf-8")) or {}
+    entries = payload.get("samples", []) if isinstance(payload, dict) else []
+    samples: list[dict] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        relative_file = str(entry.get("file", "")).strip()
+        sample_id = str(entry.get("id", "")).strip()
+        if not relative_file or not sample_id:
+            continue
+        candidate = (SAMPLE_DIR / relative_file).resolve()
+        if SAMPLE_DIR.resolve() not in candidate.parents or not candidate.is_file():
+            continue
+        samples.append(
+            {
+                "id": f"default:{sample_id}",
+                "filename": Path(relative_file).name,
+                "display_name": str(entry.get("display_name", sample_id)),
+                "stored_name": relative_file,
+                "image_url": f"/sample-assets/{relative_file}",
+                "source": "default",
+            }
+        )
+    return samples
 
 
 def list_demo_images() -> dict[str, list[dict]]:
@@ -179,7 +195,10 @@ def resolve_demo_image(image_id: str | None) -> dict:
 
 def resolve_demo_image_path(image_item: dict) -> Path:
     if image_item.get("source") == "default":
-        return DEFAULT_DEMO_IMAGE_DIR / image_item["stored_name"]
+        candidate = (SAMPLE_DIR / image_item["stored_name"]).resolve()
+        if SAMPLE_DIR.resolve() not in candidate.parents or not candidate.is_file():
+            raise FileNotFoundError("Curated sample asset was not found.")
+        return candidate
     return UPLOAD_DIR / image_item["stored_name"]
 
 
@@ -236,31 +255,15 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
         target = conformal_heatmap_urls if map_name.startswith("conformal_") else heatmap_urls
         target[map_name] = f"/runtime_static/results/{heatmap_name}"
 
-    predicted_tumor_present = bool(summary.get("predicted_tumor_present"))
-    if predicted_tumor_present:
-        note = (
-            "Các score này được suy ra hậu kiểm từ xác suất phân đoạn của ảnh vừa segment, "
-            "không phải là xác suất chẩn đoán lâm sàng."
-        )
-    else:
-        note = (
-            "Ảnh này không có vùng tumor dự đoán, nên một số score theo vùng tumor sẽ để trống."
-        )
-
+    note = (
+        "H_G là predictive entropy nhị phân chuẩn hóa của ảnh vừa segment; "
+        "không phải xác suất chẩn đoán lâm sàng."
+    )
     conformal_available = bool(conformal_summary.get("available"))
-    if conformal_available:
-        conformal_note = (
-            "Reliability metadata được đọc từ artifact hiệu chỉnh đã khai báo cho đúng checkpoint. "
-            "Không diễn giải như bảo đảm lâm sàng cho ảnh upload tùy ý."
-        )
-    elif conformal_summary:
-        conformal_note = (
-            "Checkpoint này đã có hồ sơ conformal nhưng artifact calibration chưa đủ để dựng prediction set."
-        )
-    else:
-        conformal_note = (
-            "Checkpoint này hiện chưa có artifact conformal calibration đi kèm, nên web chỉ hiển thị uncertainty thường."
-        )
+    conformal_note = (
+        "Checkpoint này không dùng CRC/conformal khi suy luận live; "
+        "web không tạo risk-control metadata thay thế."
+    )
 
     return {
         "available": True,
@@ -286,6 +289,8 @@ def get_predictor(model_id: str):
         cached_entry = PREDICTOR_CACHE.get(model_id)
         predictor = cached_entry["predictor"] if cached_entry and cached_entry.get("cache_token") == cache_token else None
         if predictor is None:
+            # Render runs one worker; retaining another full PyTorch model is needless on model switches.
+            PREDICTOR_CACHE.clear()
             predictor = build_predictor(model_id)
             PREDICTOR_CACHE[model_id] = {
                 "cache_token": cache_token,

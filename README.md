@@ -16,7 +16,7 @@ Demo trình bày bài toán phân đoạn nhị phân vùng tổn thương trên
 
 ## 3. Kiến trúc hệ thống
 
-Flask phục vụ frontend tĩnh, metadata kết quả và registry model. Model chỉ được lazy-load khi registry đánh dấu `enabled: true` và có đủ config/checkpoint tương ứng. Render Free mặc định chỉ chạy dashboard, tránh cài PyTorch/Transformers.
+Flask phục vụ frontend tĩnh, metadata kết quả và registry model. Model chỉ được lazy-load khi registry đánh dấu `enabled: true` và có đủ config/checkpoint tương ứng. Live SegFormer inference dùng adapter mỏng bám theo validation research: grayscale -> bilinear resize 512 -> lặp 3 kênh -> chuẩn hóa ImageNet -> sigmoid một kênh -> threshold evaluation -> resize nearest-neighbor chỉ để hiển thị.
 
 ## 4. Phương pháp
 
@@ -37,9 +37,8 @@ Không commit checkpoint. Chỉ enable một model khi config, checkpoint, thres
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python server.py
+./.venv/bin/python -m pip install -r requirements.txt -r requirements-inference.txt
+./dev_scripts/run_local.sh
 ```
 
 Mở `http://127.0.0.1:4173`. Nếu registry không có model hợp lệ, dashboard vẫn hoạt động và live inference được vô hiệu hóa rõ ràng.
@@ -52,18 +51,32 @@ docker compose up --build
 
 ## 9. Deploy Render Free
 
-Deploy từ Dockerfile với một Gunicorn worker và hai threads. Render Free phù hợp dashboard/static demo; CPU inference chỉ nên bật khi artifact nhỏ, startup/memory thực tế đã được kiểm tra.
+Deploy từ Dockerfile với một Gunicorn worker và hai threads. Docker mặc định cài `torch` và `transformers` để hỗ trợ live inference; dùng `--build-arg INSTALL_INFERENCE=false` chỉ khi muốn dashboard-only. Render Free có thể không đủ RAM cho PyTorch + Transformers CPU trong lúc load SegFormer; cần kiểm tra giới hạn instance thực tế hoặc dùng Render paid cho live inference. Health endpoint vẫn khởi động trước khi model được load.
 
 ## 10. Thêm model mới
 
 Thêm một entry trong `resources/metadata/models.yaml`, sau đó cung cấp artifact local đúng path. Entry phải chỉ rõ dataset, architecture, method, threshold và calibration artifact checkpoint-specific khi áp dụng.
+
+## Curate demo samples
+
+Built-in X-ray samples are read only from `resources/samples/samples.yaml`. Curate only approved, de-identified source images before deployment:
+
+```bash
+python tools/curate_demo_samples.py \
+  --dataset btxrd --method mean_teacher_entropy --seed 42 --split test \
+  --metrics-csv /path/to/per_case_metrics.csv \
+  --source-root /path/to/research/outputs \
+  --confirm-public-deidentified
+```
+
+The script limits the curation to at most ten unique images and records metric provenance without embedding source filesystem paths.
 
 ## 11. Giới hạn
 
 - Không hiển thị Dice, IoU, HD95 hay FNR cho ảnh upload không có mask tham chiếu.
 - Kết quả BTXRD ablation là seed 42; CRC variants thể hiện trade-off, không phải cải thiện tuyệt đối.
 - FracAtlas là benchmark fracture, không phải dữ liệu u xương.
-- Adapter inference cũ bị coi là không tương thích với research pipeline hiện hành cho đến khi có adapter mỏng dùng đúng config/checkpoint đã xác minh.
+- Adapter live SegFormer đã được kiểm chứng parity một ảnh với research validation semantics. CRC model chỉ được bật khi có adapter/state artifact nghiên cứu tương ứng; demo không tự fallback sang rule 0.5.
 
 ## 1. Mục đích của hệ thống
 
@@ -110,12 +123,11 @@ http://127.0.0.1:4173
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -r requirements.txt
-python3 server.py
+./.venv/bin/python -m pip install -r requirements.txt -r requirements-inference.txt
+./dev_scripts/run_local.sh
 ```
 
-Nếu cần bật live inference với `torch + transformers`, cài thêm:
+`requirements-inference.txt` là phần dependency bắt buộc cho live inference (không cần cho dashboard-only):
 
 ```bash
 python3 -m pip install -r requirements-inference.txt

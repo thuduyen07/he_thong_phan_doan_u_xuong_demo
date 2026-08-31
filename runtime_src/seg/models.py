@@ -7,6 +7,11 @@ from torch import nn
 from transformers import SegformerConfig, SegformerForSemanticSegmentation
 
 
+SEGFORMER_VARIANT_DEFAULTS = {
+    "b0": "nvidia/segformer-b0-finetuned-ade-512-512",
+}
+
+
 @dataclass
 class ModelSpec:
     model_type: str
@@ -90,15 +95,27 @@ class LightweightUNet(nn.Module):
         return self.head(x)
 
 
+def get_model_cfg(cfg: dict) -> dict:
+    return dict(cfg.get("model", {}))
+
+
+def get_num_classes(cfg: dict) -> int:
+    value = get_model_cfg(cfg).get("num_classes", cfg.get("num_classes"))
+    if value is None:
+        raise KeyError("Model configuration must define num_classes.")
+    return int(value)
+
+
 def get_model_type(cfg: dict) -> str:
-    return str(cfg.get("model_type", "segformer")).strip().lower()
+    return str(get_model_cfg(cfg).get("type", cfg.get("model_type", "segformer"))).strip().lower()
 
 
 def build_segformer(cfg: dict):
-    model_name = cfg.get("local_model_path") or cfg["model_name"]
-    pretrained = cfg.get("pretrained", True)
-    num_classes = cfg["num_classes"]
-    local_files_only = bool(cfg.get("local_files_only", False))
+    model_cfg = get_model_cfg(cfg)
+    model_name = model_cfg.get("local_model_path") or cfg.get("local_model_path") or model_cfg.get("name") or cfg.get("model_name") or SEGFORMER_VARIANT_DEFAULTS["b0"]
+    pretrained = bool(model_cfg.get("pretrained", cfg.get("pretrained", True)))
+    num_classes = get_num_classes(cfg)
+    local_files_only = bool(model_cfg.get("local_files_only", cfg.get("local_files_only", False)))
 
     if pretrained:
         try:
@@ -122,7 +139,7 @@ def build_unet(cfg: dict) -> nn.Module:
     unet_cfg = dict(cfg.get("unet", {}))
     return LightweightUNet(
         in_channels=int(unet_cfg.get("in_channels", 3)),
-        num_classes=int(cfg["num_classes"]),
+        num_classes=get_num_classes(cfg),
         base_channels=int(unet_cfg.get("base_channels", 16)),
     )
 

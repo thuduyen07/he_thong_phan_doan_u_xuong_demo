@@ -6,19 +6,19 @@ from backend.dashboard import get_dashboard_payload
 from backend.inference.service import (
     APP_DIR,
     RUNTIME_STATIC_DIR,
+    SAMPLE_DIR,
     available_models,
     delete_uploaded_image,
     get_warmup_state,
     list_demo_images,
     run_segmentation,
-    start_default_predictor_warmup,
     store_upload,
 )
+from backend.inference.environment import validate_inference_environment
 
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
-start_default_predictor_warmup()
 
 
 @app.get("/health")
@@ -33,12 +33,12 @@ def health():
 
 @app.get("/models")
 def models():
-    return jsonify(available_models())
+    return jsonify({"models": available_models(), "inference_runtime": validate_inference_environment()})
 
 
 @app.get("/api/models")
 def api_models():
-    return jsonify(available_models())
+    return jsonify({"models": available_models(), "inference_runtime": validate_inference_environment()})
 
 
 @app.get("/dashboard")
@@ -72,16 +72,41 @@ def delete_image(image_id: str):
 @app.post("/segment")
 def segment():
     payload = request.get_json(silent=True) or {}
-    result = run_segmentation(
-        image_id=payload.get("image_id"),
-        model_id=payload.get("model_id"),
-    )
+    runtime = validate_inference_environment()
+    if not runtime["available"]:
+        app.logger.error("Live inference dependency import failed: %s", runtime["missing_dependencies"])
+        return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
+    try:
+        result = run_segmentation(
+            image_id=payload.get("image_id"),
+            model_id=payload.get("model_id"),
+        )
+    except ModuleNotFoundError as exc:
+        app.logger.exception("Live inference dependency import failed: %s", exc.name)
+        return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
+    except ImportError as exc:
+        app.logger.exception("Live inference dependency import failed")
+        return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
+    except FileNotFoundError:
+        app.logger.exception("Live inference artifact was not found")
+        return jsonify({"error": "CHECKPOINT_NOT_FOUND: Không tìm thấy artifact model đã đăng ký."}), 503
+    except ValueError:
+        app.logger.exception("Live inference model configuration is invalid")
+        return jsonify({"error": "MODEL_CONFIG_INVALID: Cấu hình model không hợp lệ."}), 503
+    except RuntimeError:
+        app.logger.exception("Live inference model initialization or execution failed")
+        return jsonify({"error": "MODEL_INITIALIZATION_FAILED: Không thể khởi tạo hoặc chạy model."}), 503
     return jsonify(result)
 
 
 @app.get("/runtime_static/<path:filename>")
 def runtime_static(filename: str):
     return send_from_directory(RUNTIME_STATIC_DIR, filename)
+
+
+@app.get("/sample-assets/<path:filename>")
+def sample_assets(filename: str):
+    return send_from_directory(SAMPLE_DIR, filename)
 
 
 @app.get("/app/<path:filename>")

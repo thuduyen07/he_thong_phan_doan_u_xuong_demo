@@ -9,11 +9,11 @@
   };
 
   const uncertaintyScoreConfig = [
-    ["mean_predictive_entropy_pred_tumor", "Mean entropy"],
-    ["p90_predictive_entropy_pred_tumor", "P90 entropy"],
-    ["mean_predictive_entropy_boundary_tumor", "Boundary entropy"],
-    ["low_tumor_probability_fraction_pred_tumor", "Low prob fraction"],
-    ["mean_tumor_probability_pred_tumor", "Mean tumor prob"],
+    ["global_entropy", "H_G (global entropy)"],
+    ["boundary_entropy", "H_B (boundary entropy)"],
+    ["uncertain_pixel_ratio", "Uncertain pixel ratio"],
+    ["predicted_tumor_ratio", "Predicted tumor ratio"],
+    ["mean_tumor_probability", "Mean tumor probability"],
   ];
 
   const conformalScoreConfig = [
@@ -167,7 +167,7 @@
 
     select.innerHTML = allImages
       .map((item) => {
-        const label = item.source === "custom" ? `[upload] ${item.filename}` : `[sample] ${item.filename}`;
+        const label = item.source === "custom" ? `[upload] ${item.filename}` : (item.display_name || `[sample] ${item.filename}`);
         const selected = item.id === state.selectedImageId ? "selected" : "";
         return `<option value="${escapeHtml(item.id)}" ${selected}>${escapeHtml(label)}</option>`;
       })
@@ -183,19 +183,20 @@
 
   function renderModelOptions() {
     const select = $("#model-select");
-    const available = state.models.filter((model) => model.available);
-    if (!state.selectedModelId && available.length) {
-      state.selectedModelId = available[0].model_id;
-    }
+    const previousModelId = state.selectedModelId || select.value;
+    const available = state.models.filter((model) => model.available === true && model.model_id);
+    const selectedModel = available.find((model) => model.model_id === previousModelId) || available[0] || null;
+    state.selectedModelId = selectedModel?.model_id || null;
     select.innerHTML = available.length
       ? available
           .map((model) => {
-            const selected = model.model_id === state.selectedModelId ? "selected" : "";
+            const selected = model.model_id === selectedModel?.model_id ? "selected" : "";
             return `<option value="${escapeHtml(model.model_id)}" ${selected}>${escapeHtml(model.display_name)}</option>`;
           })
           .join("")
-      : '<option value="">Chưa có checkpoint/config tương thích</option>';
-    $("#run-live-segmentation").disabled = !available.length;
+      : '<option value="" disabled selected>Chưa có checkpoint/config tương thích</option>';
+    select.disabled = !available.length;
+    $("#run-live-segmentation").disabled = !selectedModel;
   }
 
   function renderResultGallery(items) {
@@ -321,12 +322,22 @@
   }
 
   async function loadModels() {
-    state.models = await fetchJson("/models");
-    if (!state.selectedModelId) {
-      state.selectedModelId = state.dashboard?.overview?.default_model_id || state.models.find((model) => model.available)?.model_id || null;
+    const payload = await fetchJson("/models");
+    if (!payload || !Array.isArray(payload.models)) {
+      throw new Error("Phản hồi danh sách model không hợp lệ.");
     }
+    state.models = payload.models;
     renderModelOptions();
     renderExperimentTables();
+  }
+
+  async function refreshModels() {
+    try {
+      await loadModels();
+    } catch (error) {
+      console.error("Unable to refresh model registry:", error);
+      $("#backend-status").textContent = "Không tải được danh sách model.";
+    }
   }
 
   async function loadImages() {
@@ -410,7 +421,7 @@
 
   function bindEvents() {
     $("#check-backend").addEventListener("click", updateHealth);
-    $("#refresh-models").addEventListener("click", loadModels);
+    $("#refresh-models").addEventListener("click", refreshModels);
     $("#refresh-library").addEventListener("click", loadImages);
     $("#upload-image").addEventListener("click", uploadImage);
     $("#delete-image").addEventListener("click", deleteImage);

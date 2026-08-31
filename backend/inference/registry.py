@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import json
 import importlib
+import logging
 import re
 from pathlib import Path
 
 import yaml
 
 from backend.inference.contracts import PredictorSpec
-from backend.inference.runtime_paths import RESOURCES_DIR
+from backend.inference.runtime_paths import PROJECT_ROOT, RESOURCES_DIR
 
 
 PREDICTOR_CLASSES = {
     "torch_segmentation": "backend.inference.predictors.torch_segmentation:TorchSegmentationPredictor",
 }
+LOGGER = logging.getLogger(__name__)
 
 
 def _slugify(value: str) -> str:
@@ -43,31 +45,122 @@ def _load_declared_models() -> list[dict[str, object]]:
     return [dict(item) for item in models if isinstance(item, dict)]
 
 
-def list_model_records() -> list[dict[str, object]]:
-    """Expose metadata without loading models or leaking server-side paths."""
-    records: list[dict[str, object]] = []
+def _resolve_registry_path(item: dict[str, object], field: str) -> tuple[Path | None, str | None]:
+    configured = str(item.get(field, "")).strip()
+    if not configured:
+        return None, f"{field}_missing"
+
+    candidate = Path(configured)
+    project_root = PROJECT_ROOT.resolve()
+    resolved = candidate.resolve() if candidate.is_absolute() else (project_root / candidate).resolve()
+    try:
+        resolved.relative_to(project_root)
+    except ValueError:
+        return None, f"{field}_outside_project"
+    return resolved, None
+
+
+def _validated_declared_models() -> list[dict[str, object]]:
+    """Validate registry metadata by file existence only; never load model weights."""
+    entries: list[dict[str, object]] = []
     for item in _load_declared_models():
         model_id = str(item.get("id", "")).strip()
         if not model_id:
+            LOGGER.warning("Ignoring model registry entry without an id.")
             continue
-        checkpoint = RESOURCES_DIR.parent / str(item.get("checkpoint", ""))
-        config = RESOURCES_DIR.parent / str(item.get("config", ""))
-        enabled = bool(item.get("enabled", False))
-        available = enabled and checkpoint.is_file() and config.is_file()
+
+        config_path, config_error = _resolve_registry_path(item, "config")
+        checkpoint_path, checkpoint_error = _resolve_registry_path(item, "checkpoint")
+        calibration_path, calibration_error = _resolve_registry_path(item, "calibration_artifact")
+        requires_calibration = bool(item.get("requires_calibration", False))
+        reasons: list[str] = []
+        if item.get("enabled") is not True:
+            reasons.append("disabled")
+        if config_error:
+            reasons.append(config_error)
+        elif not config_path.is_file():
+            reasons.append("config_not_found")
+        if checkpoint_error:
+            reasons.append(checkpoint_error)
+        elif not checkpoint_path.is_file():
+            reasons.append("checkpoint_not_found")
+        if requires_calibration:
+            if calibration_error:
+                reasons.append(calibration_error)
+            elif not calibration_path.is_file():
+                reasons.append("calibration_artifact_not_found")
+
+        entries.append(
+            {
+                "item": item,
+                "model_id": model_id,
+                "config_path": config_path,
+                "checkpoint_path": checkpoint_path,
+                "calibration_path": calibration_path,
+                "requires_calibration": requires_calibration,
+                "reasons": reasons,
+            }
+        )
+    return entries
+
+
+def list_model_records() -> list[dict[str, object]]:
+    """Expose model availability without loading weights or server-side paths."""
+    entries = _validated_declared_models()
+    records: list[dict[str, object]] = []
+    for entry in entries:
+        item = entry["item"]
+        reasons = entry["reasons"]
+        assert isinstance(item, dict)
+        assert isinstance(reasons, list)
         records.append(
             {
-                "model_id": model_id,
-                "display_name": str(item.get("display_name", model_id)),
+                "model_id": entry["model_id"],
+                "display_name": str(item.get("display_name", entry["model_id"])),
                 "dataset": str(item.get("dataset", "generic")),
                 "architecture": str(item.get("architecture", "")),
                 "method": str(item.get("method", "")),
                 "threshold": item.get("threshold"),
-                "calibration_available": bool(str(item.get("calibration_artifact", "")).strip()),
-                "available": available,
+                "calibration_available": bool(entry["calibration_path"] and entry["calibration_path"].is_file()),
+                "available": not reasons,
+                "unavailable_reason": reasons[0] if reasons else None,
+                "unavailable_reasons": reasons,
                 "description": str(item.get("description", "")),
             }
         )
+    LOGGER.info("Model registry: %d declared, %d available.", len(records), sum(record["available"] for record in records))
     return records
+
+
+def _declared_model_specs() -> dict[str, PredictorSpec]:
+    specs: dict[str, PredictorSpec] = {}
+    for entry in _validated_declared_models():
+        if entry["reasons"]:
+            continue
+        item = entry["item"]
+        config_path = entry["config_path"]
+        checkpoint_path = entry["checkpoint_path"]
+        assert isinstance(item, dict)
+        assert isinstance(config_path, Path)
+        assert isinstance(checkpoint_path, Path)
+        config_overrides = item.get("config_overrides")
+        specs[str(entry["model_id"])] = PredictorSpec(
+            model_id=str(entry["model_id"]),
+            predictor_type=str(item.get("predictor_type", "torch_segmentation")),
+            display_name=str(item.get("display_name", entry["model_id"])),
+            config_path=config_path,
+            checkpoint_path=checkpoint_path,
+            note=str(item.get("description", "")),
+            config_overrides=dict(config_overrides) if isinstance(config_overrides, dict) else None,
+            extra_metadata={
+                "dataset": str(item.get("dataset", "generic")),
+                "architecture": str(item.get("architecture", "")),
+                "method": str(item.get("method", "")),
+                "threshold": item.get("threshold"),
+                "calibration_required": bool(entry["requires_calibration"]),
+            },
+        )
+    return specs
 
 
 def _collect_run_dirs(root: Path) -> list[tuple[Path, str]]:
@@ -187,6 +280,7 @@ def list_model_specs() -> list[PredictorSpec]:
     specs = {
         **STATIC_MODEL_SPECS,
         **_discover_experiment_specs(),
+        **_declared_model_specs(),
     }
     return sorted(specs.values(), key=lambda item: item.display_name.lower())
 

@@ -1,0 +1,251 @@
+samples:
+- id: btxrd_fn_IMG001237
+  display_name: '[sample] btxrd_FN_IMG001237'
+  dataset: btxrd
+  case_type: fn
+  original_image_id: IMG001237
+  file: btxrd/btxrd_IMG001237.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: FN
+    metric: null
+    direction: null
+  metrics:
+    dice: 0.0
+    iou: 0.0
+    hd95: null
+    precision: 0.0
+    recall: 0.0
+  foreground_presence:
+    ground_truth: true
+    prediction: false
+- id: btxrd_fp_IMG003246
+  display_name: '[sample] btxrd_FP_IMG003246'
+  dataset: btxrd
+  case_type: fp
+  original_image_id: IMG003246
+  file: btxrd/btxrd_IMG003246.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: FP
+    metric: null
+    direction: null
+  metrics:
+    dice: 0.0
+    iou: 0.0
+    hd95: null
+    precision: 0.0
+    recall: 0.0
+  foreground_presence:
+    ground_truth: false
+    prediction: true
+- id: btxrd_tn_IMG001924
+  display_name: '[sample] btxrd_TN_IMG001924'
+  dataset: btxrd
+  case_type: tn
+  original_image_id: IMG001924
+  file: btxrd/btxrd_IMG001924.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TN
+    metric: null
+    direction: null
+  metrics:
+    dice: 1.0
+    iou: 1.0
+    hd95: 0.0
+    precision: 0.0
+    recall: 0.0
+  foreground_presence:
+    ground_truth: false
+    prediction: false
+- id: btxrd_tp_IMG001564
+  display_name: '[sample] btxrd_TP_IMG001564'
+  dataset: btxrd
+  case_type: tp
+  original_image_id: IMG001564
+  file: btxrd/btxrd_IMG001564.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: null
+    direction: null
+  metrics:
+    dice: 0.7348130532434932
+    iou: 0.5807940519203859
+    hd95: 52.01249777870811
+    precision: 0.757882974954351
+    recall: 0.7131061363694643
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_best_dice_IMG001462
+  display_name: '[sample] btxrd_Best_Dice_IMG001462'
+  dataset: btxrd
+  case_type: best_dice
+  original_image_id: IMG001462
+  file: btxrd/btxrd_IMG001462.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: dice
+    direction: max
+  metrics:
+    dice: 0.9461258250938074
+    iou: 0.8977597588232237
+    hd95: 14.317821063276353
+    precision: 0.9762052789238682
+    recall: 0.9178446168562016
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_worst_dice_IMG000023
+  display_name: '[sample] btxrd_Worst_Dice_IMG000023'
+  dataset: btxrd
+  case_type: worst_dice
+  original_image_id: IMG000023
+  file: btxrd/btxrd_IMG000023.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: dice
+    direction: min
+  metrics:
+    dice: 0.0
+    iou: 0.0
+    hd95: 130.17430620765242
+    precision: 0.0
+    recall: 0.0
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_best_iou_IMG001462
+  display_name: '[sample] btxrd_Best_IoU_IMG001462'
+  dataset: btxrd
+  case_type: best_iou
+  original_image_id: IMG001462
+  file: btxrd/btxrd_IMG001462.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: iou
+    direction: max
+  metrics:
+    dice: 0.9461258250938074
+    iou: 0.8977597588232237
+    hd95: 14.317821063276353
+    precision: 0.9762052789238682
+    recall: 0.9178446168562016
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_worst_iou_IMG000023
+  display_name: '[sample] btxrd_Worst_IoU_IMG000023'
+  dataset: btxrd
+  case_type: worst_iou
+  original_image_id: IMG000023
+  file: btxrd/btxrd_IMG000023.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: iou
+    direction: min
+  metrics:
+    dice: 0.0
+    iou: 0.0
+    hd95: 130.17430620765242
+    precision: 0.0
+    recall: 0.0
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_best_hd95_IMG000335
+  display_name: '[sample] btxrd_Best_HD95_IMG000335'
+  dataset: btxrd
+  case_type: best_hd95
+  original_image_id: IMG000335
+  file: btxrd/btxrd_IMG000335.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: hd95
+    direction: max
+  metrics:
+    dice: 0.8493150684931506
+    iou: 0.7380952380952381
+    hd95: 2.0
+    precision: 0.7908163265306123
+    recall: 0.9171597633136095
+  foreground_presence:
+    ground_truth: true
+    prediction: true
+- id: btxrd_worst_hd95_IMG000258
+  display_name: '[sample] btxrd_Worst_HD95_IMG000258'
+  dataset: btxrd
+  case_type: worst_hd95
+  original_image_id: IMG000258
+  file: btxrd/btxrd_IMG000258.jpeg
+  source_evaluation:
+    report: per_case_metrics.csv
+    dataset: btxrd
+    method: mean_teacher_entropy
+    seed: 42
+    split: test
+  selection:
+    case_class: TP
+    metric: hd95
+    direction: min
+  metrics:
+    dice: 0.678741658722593
+    iou: 0.5137085137085137
+    hd95: 456.59248719202867
+    precision: 0.5579937304075235
+    recall: 0.8661800486618005
+  foreground_presence:
+    ground_truth: true
+    prediction: true
