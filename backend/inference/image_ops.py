@@ -31,9 +31,9 @@ def save_grayscale_png(path, image: np.ndarray) -> None:
 
 
 def colorize_heatmap(values: np.ndarray) -> np.ndarray:
+    """Use a sequential display palette; values remain unchanged in the saved artifact."""
     arr = np.clip(np.asarray(values, dtype=np.float32), 0.0, 1.0)
-    red = np.clip(1.5 * arr, 0.0, 1.0)
-    green = np.clip(1.5 - np.abs((arr * 2.0) - 1.0) * 1.5, 0.0, 1.0)
-    blue = np.clip(1.5 * (1.0 - arr), 0.0, 1.0)
-    rgb = np.stack([red, green, blue], axis=-1)
-    return np.clip(np.rint(rgb * 255.0), 0, 255).astype(np.uint8)
+    low = np.array([23.0, 42.0, 79.0], dtype=np.float32)
+    high = np.array([249.0, 203.0, 82.0], dtype=np.float32)
+    rgb = low + arr[..., None] * (high - low)
+    return np.clip(np.rint(rgb), 0, 255).astype(np.uint8)

@@ -113,7 +113,7 @@
                   <div class="badge-row" id="stage-badges"></div>
                 </div>
                 <p class="stage-summary" id="stage-summary">
-                  Chọn một ảnh mẫu hoặc tải ảnh mới lên, sau đó chạy segmentation để xem overlay, mask, uncertainty và conformal map hậu kiểm.
+                  Chọn một ảnh mẫu hoặc tải ảnh mới lên, sau đó chạy segmentation để xem mask, probability map và entropy hậu kiểm.
                 </p>
                 <div class="result-gallery live-gallery">
                   <figure class="image-panel">
@@ -125,26 +125,26 @@
                   <div class="result-items" id="result-gallery"></div>
                 </div>
                 <div class="case-notes" id="case-notes"></div>
+                <p class="run-status muted-note" id="segmentation-status" aria-live="polite"></p>
                 <section class="uncertainty-panel hidden" id="uncertainty-panel">
                   <div class="uncertainty-header">
                     <div>
                       <p class="section-tag">Predictive uncertainty</p>
-                      <h3>Uncertainty và reliability metadata</h3>
+                      <h3>Hậu kiểm bất định của phân đoạn</h3>
                     </div>
                     <p class="muted-note" id="uncertainty-note"></p>
                   </div>
                   <div class="uncertainty-section">
-                    <h4>Uncertainty từ xác suất phân đoạn</h4>
+                    <h4>Entropy dự đoán</h4>
                     <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
                     <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
                   </div>
-                  <div class="uncertainty-section hidden" id="conformal-section">
+                  <div class="uncertainty-section" id="risk-control-section">
                     <div class="uncertainty-subheader">
-                      <div><p class="section-tag">Risk control</p><h4>Artifact hiệu chỉnh checkpoint-specific</h4></div>
-                      <p class="muted-note" id="conformal-note"></p>
+                      <div><p class="section-tag">Risk control</p><h4>CRC / conformal applicability</h4></div>
+                      <p class="muted-note" id="risk-control-note"></p>
                     </div>
-                    <div class="uncertainty-score-grid" id="conformal-score-grid"></div>
-                    <div class="uncertainty-heatmaps" id="conformal-heatmaps"></div>
+                    <div id="risk-control-status"></div>
                   </div>
                 </section>
               </div>

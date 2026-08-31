@@ -237,6 +237,26 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
             "available": False,
             "summary": {},
             "heatmaps": {},
+            "pixel_entropy": {
+                "available": False,
+                "heatmap_url": None,
+                "normalization": "normalized_binary_entropy",
+                "range": [0.0, 1.0],
+                "reason": "predictive_entropy_not_emitted",
+            },
+            "tumor_probability": {"available": False, "heatmap_url": None, "range": [0.0, 1.0]},
+            "global": {"available": False, "name": "H_G", "value": None},
+            "boundary": {
+                "available": False,
+                "name": "H_B",
+                "value": None,
+                "reason": "boundary_not_enabled_or_not_emitted",
+            },
+            "risk_control": {
+                "available": False,
+                "reason": "not_applicable",
+                "note": "Không có CRC/conformal artifact hợp lệ cho checkpoint này.",
+            },
             "conformal": {
                 "available": False,
                 "summary": {},
@@ -264,11 +284,52 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
         "Checkpoint này không dùng CRC/conformal khi suy luận live; "
         "web không tạo risk-control metadata thay thế."
     )
+    boundary_enabled = bool(summary.get("boundary_available"))
+    boundary_value = summary.get("boundary_entropy")
+    boundary_pixel_count = summary.get("boundary_pixel_count")
+    boundary_available = boundary_enabled and boundary_value is not None and boundary_pixel_count != 0
+    if not boundary_enabled:
+        boundary_reason = "boundary_disabled_in_model_config"
+    elif summary.get("boundary_pixel_count") == 0:
+        boundary_reason = "empty_predicted_boundary"
+    elif boundary_value is None:
+        boundary_reason = "boundary_entropy_not_emitted"
+    else:
+        boundary_reason = None
 
     return {
         "available": True,
         "summary": summary,
         "heatmaps": heatmap_urls,
+        "pixel_entropy": {
+            "available": "predictive_entropy" in heatmap_urls,
+            "heatmap_url": heatmap_urls.get("predictive_entropy"),
+            "normalization": "normalized_binary_entropy",
+            "range": [0.0, 1.0],
+        },
+        "tumor_probability": {
+            "available": "tumor_probability" in heatmap_urls,
+            "heatmap_url": heatmap_urls.get("tumor_probability"),
+            "range": [0.0, 1.0],
+        },
+        "global": {
+            "available": summary.get("global_entropy") is not None,
+            "name": "H_G",
+            "value": summary.get("global_entropy"),
+            "definition": "mean_normalized_binary_predictive_entropy",
+        },
+        "boundary": {
+            "available": boundary_available,
+            "name": "H_B",
+            "value": boundary_value if boundary_available else None,
+            "boundary_pixel_count": boundary_pixel_count,
+            "reason": boundary_reason,
+        },
+        "risk_control": {
+            "available": conformal_available,
+            "reason": None if conformal_available else "not_applicable",
+            "note": conformal_note,
+        },
         "conformal": {
             "available": conformal_available,
             "summary": conformal_summary,

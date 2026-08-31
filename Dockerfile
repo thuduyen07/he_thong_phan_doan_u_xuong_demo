@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     INSTALL_INFERENCE=${INSTALL_INFERENCE} \
     HOST=0.0.0.0 \
-    PORT=4173
+    PORT=10000
 
 WORKDIR /app
 
@@ -40,6 +40,6 @@ USER appuser
 EXPOSE 4173
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
-  CMD python -c "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:4173/health', timeout=3); sys.exit(0)"
+  CMD python -c "import os, sys, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('PORT', '10000')}/health\", timeout=3); sys.exit(0)"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:4173", "--workers", "1", "--threads", "2", "--timeout", "180", "--access-logfile", "-", "--error-logfile", "-", "backend.api:app"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 2 --timeout 180 --access-logfile - --error-logfile - backend.api:app"]

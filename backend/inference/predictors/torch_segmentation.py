@@ -323,8 +323,10 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             mask = (probability[:, 0] >= self.binary_threshold).to(dtype=torch.uint8)
             entropy = self._compute_binary_entropy(probability[:, 0])
             boundary_entropy = None
+            boundary_pixel_count = None
             if self.boundary_enabled:
                 boundary = self._build_predicted_boundary(mask > 0, radius=self.boundary_radius)
+                boundary_pixel_count = int(boundary.sum().item())
                 boundary_entropy = (entropy * boundary.float()).sum() / boundary.float().sum().clamp_min(1e-6)
 
             mask_map = mask[0].detach().cpu().numpy().astype(np.uint8)
@@ -335,6 +337,7 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                 "global_entropy": float(entropy.mean().item()),
                 "boundary_entropy": None if boundary_entropy is None else float(boundary_entropy.item()),
                 "boundary_available": self.boundary_enabled,
+                "boundary_pixel_count": boundary_pixel_count,
                 "uncertain_pixel_ratio": float((entropy >= self.uncertainty_threshold).float().mean().item()),
                 "predicted_tumor_ratio": float(mask.float().mean().item()),
                 "mean_tumor_probability": float(probability.mean().item()),

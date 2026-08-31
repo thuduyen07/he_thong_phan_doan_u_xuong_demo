@@ -8,24 +8,6 @@
     liveResult: null,
   };
 
-  const uncertaintyScoreConfig = [
-    ["global_entropy", "H_G (global entropy)"],
-    ["boundary_entropy", "H_B (boundary entropy)"],
-    ["uncertain_pixel_ratio", "Uncertain pixel ratio"],
-    ["predicted_tumor_ratio", "Predicted tumor ratio"],
-    ["mean_tumor_probability", "Mean tumor probability"],
-  ];
-
-  const conformalScoreConfig = [
-    ["target_coverage", "Target coverage"],
-    ["probability_floor", "Probability floor"],
-    ["mean_set_size", "Mean set size"],
-    ["sure_tumor_pixels", "Sure tumor pixels"],
-    ["outer_tumor_pixels", "Outer tumor pixels"],
-    ["uncertain_pixels", "Uncertain pixels"],
-    ["uncertain_fraction", "Uncertain fraction"],
-  ];
-
   function $(selector) {
     return document.querySelector(selector);
   }
@@ -214,38 +196,95 @@
       .join("");
   }
 
-  function renderScoreGrid(containerId, summary, config) {
-    const container = document.getElementById(containerId);
-    container.innerHTML = config
-      .map(([key, label]) => `
-        <article class="score-card">
-          <p class="metric-label">${escapeHtml(label)}</p>
-          <p class="metric-value small">${escapeHtml(formatMetricValue(summary?.[key]))}</p>
-        </article>
-      `)
+  function renderAvailabilityCards(uncertainty) {
+    const global = uncertainty.global || {};
+    const boundary = uncertainty.boundary || {};
+    const pixelEntropy = uncertainty.pixel_entropy || {};
+    const summary = uncertainty.summary || {};
+    const cards = [
+      {
+        label: "H_G · global predictive entropy",
+        value: global.available ? formatNumber(global.value) : "N/A",
+        detail: "Trung bình entropy nhị phân chuẩn hóa trên ảnh 512 × 512.",
+        tone: global.available ? "available" : "unavailable",
+      },
+      {
+        label: "H_B · boundary entropy",
+        value: boundary.available ? formatNumber(boundary.value) : "Không áp dụng",
+        detail: boundary.available
+          ? `Tính trên ${formatMetricValue(boundary.boundary_pixel_count)} pixel biên dự đoán.`
+          : boundary.reason === "empty_predicted_boundary"
+            ? "Mask dự đoán không có biên để tổng hợp H_B cho ảnh này."
+            : "Boundary weighting không được bật trong config checkpoint hiện tại.",
+        tone: boundary.available ? "available" : "unavailable",
+      },
+      {
+        label: "Uncertain pixel ratio",
+        value: pixelEntropy.available ? formatNumber(summary.uncertain_pixel_ratio) : "N/A",
+        detail: "Tỷ lệ pixel có entropy vượt ngưỡng analysis của cấu hình nghiên cứu.",
+        tone: pixelEntropy.available ? "available" : "unavailable",
+      },
+    ];
+    $("#uncertainty-score-grid").innerHTML = cards
+      .map(
+        (card) => `
+          <article class="score-card ${card.tone}">
+            <p class="metric-label">${escapeHtml(card.label)}</p>
+            <p class="metric-value small">${escapeHtml(card.value)}</p>
+            <p class="score-detail">${escapeHtml(card.detail)}</p>
+          </article>
+        `
+      )
       .join("");
   }
 
-  function renderHeatmaps(containerId, maps) {
-    const entries = Object.entries(maps || {});
-    const container = document.getElementById(containerId);
-    if (!entries.length) {
-      container.innerHTML = '<p class="muted-note">Không có heatmap cho kết quả này.</p>';
+  function renderEntropyMaps(uncertainty) {
+    const entropy = uncertainty.pixel_entropy || {};
+    const probability = uncertainty.tumor_probability || {};
+    const maps = [];
+    if (probability.available && probability.heatmap_url) {
+      maps.push({
+        key: "Tumor probability map",
+        value: probability.heatmap_url,
+        description: "Giá trị hiển thị 0–1, nội suy từ probability map của mô hình.",
+      });
+    }
+    if (entropy.available && entropy.heatmap_url) {
+      maps.push({
+        key: "Predictive entropy map",
+        value: entropy.heatmap_url,
+        description: "Entropy nhị phân chuẩn hóa: thấp → cao.",
+      });
+    }
+    const container = $("#uncertainty-heatmaps");
+    if (!maps.length) {
+      container.innerHTML = '<p class="muted-note">Không có uncertainty map được mô hình phát ra cho kết quả này.</p>';
       return;
     }
-
-    container.innerHTML = entries
+    container.innerHTML = maps
       .map(
-        ([key, value]) => `
-          <figure class="image-panel compact">
-            <figcaption>${escapeHtml(key)}</figcaption>
-            <div class="image-frame result-frame">
-              <img src="${escapeHtml(value)}" alt="${escapeHtml(key)}" />
-            </div>
+        (map) => `
+          <figure class="image-panel compact heatmap-panel">
+            <figcaption>${escapeHtml(map.key)}</figcaption>
+            <div class="image-frame result-frame"><img src="${escapeHtml(map.value)}" alt="${escapeHtml(map.key)}" /></div>
+            <p class="score-detail">${escapeHtml(map.description)}</p>
+            <div class="heatmap-legend" aria-label="Thang màu heatmap"><span>Thấp</span><i></i><span>Cao</span></div>
           </figure>
         `
       )
       .join("");
+  }
+
+  function renderRiskControl(uncertainty) {
+    const risk = uncertainty.risk_control || {};
+    const available = Boolean(risk.available);
+    $("#risk-control-note").textContent = risk.note || "";
+    $("#risk-control-status").innerHTML = `
+      <article class="availability-note ${available ? "available" : "unavailable"}">
+        <strong>${available ? "CRC/conformal artifact sẵn sàng" : "Không áp dụng cho checkpoint hiện tại"}</strong>
+        <p>${escapeHtml(available ? "Risk-control output được backend cung cấp từ artifact checkpoint-specific." : "Checkpoint này được chạy với conformal/CRC tắt; web không tự tạo risk-control metadata thay thế.")}</p>
+      </article>
+    `;
   }
 
   function renderLiveResult() {
@@ -261,13 +300,14 @@
       result.metadata?.model_type,
       result.checkpoint_name,
       `foreground:${result.metadata?.foreground_pixels ?? 0}`,
-      result.uncertainty?.conformal?.available ? "conformal-ready" : "uncertainty-only",
+      result.uncertainty?.risk_control?.available ? "risk-control-ready" : "entropy-only",
     ]
       .filter(Boolean)
       .map((item) => `<span class="pill">${escapeHtml(item)}</span>`)
       .join("");
 
-    renderResultGallery([
+    const uncertainty = result.uncertainty || {};
+    const galleryItems = [
       {
         label: "Overlay",
         src: result.overlay_image_url,
@@ -280,7 +320,24 @@
         alt: "Segmentation mask",
         emphasized: false,
       },
-    ]);
+    ];
+    if (uncertainty.tumor_probability?.available) {
+      galleryItems.push({
+        label: "Tumor probability",
+        src: uncertainty.tumor_probability.heatmap_url,
+        alt: "Tumor probability heatmap",
+        emphasized: false,
+      });
+    }
+    if (uncertainty.pixel_entropy?.available) {
+      galleryItems.push({
+        label: "Predictive entropy",
+        src: uncertainty.pixel_entropy.heatmap_url,
+        alt: "Predictive entropy heatmap",
+        emphasized: false,
+      });
+    }
+    renderResultGallery(galleryItems);
 
     $("#case-notes").innerHTML = `
       <p><strong>Ảnh:</strong> ${escapeHtml(result.original_filename)}</p>
@@ -288,7 +345,6 @@
       <p><strong>Foreground fraction:</strong> ${escapeHtml(formatMetricValue(result.metadata?.foreground_fraction))}</p>
     `;
 
-    const uncertainty = result.uncertainty || {};
     const hasUncertainty = Boolean(uncertainty.available);
     $("#uncertainty-panel").classList.toggle("hidden", !hasUncertainty);
     if (!hasUncertainty) {
@@ -296,14 +352,9 @@
     }
 
     $("#uncertainty-note").textContent = uncertainty.note || "";
-    renderScoreGrid("uncertainty-score-grid", uncertainty.summary, uncertaintyScoreConfig);
-    renderHeatmaps("uncertainty-heatmaps", uncertainty.heatmaps || {});
-
-    const conformal = uncertainty.conformal || {};
-    $("#conformal-section").classList.toggle("hidden", !conformal.available);
-    $("#conformal-note").textContent = conformal.note || "";
-    renderScoreGrid("conformal-score-grid", conformal.summary, conformalScoreConfig);
-    renderHeatmaps("conformal-heatmaps", conformal.heatmaps || {});
+    renderAvailabilityCards(uncertainty);
+    renderEntropyMaps(uncertainty);
+    renderRiskControl(uncertainty);
   }
 
   async function fetchJson(url, options) {
@@ -405,7 +456,8 @@
 
     const button = $("#run-live-segmentation");
     button.disabled = true;
-    button.textContent = "Đang chạy...";
+    button.textContent = "Đang phân đoạn...";
+    $("#segmentation-status").textContent = "Đang phân đoạn và tính bất định... Kết quả trước đó vẫn được giữ nguyên.";
     try {
       state.liveResult = await fetchJson("/segment", {
         method: "POST",
@@ -413,6 +465,9 @@
         body: JSON.stringify({ image_id: state.selectedImageId, model_id: state.selectedModelId }),
       });
       renderLiveResult();
+      $("#segmentation-status").textContent = "Đã cập nhật kết quả phân đoạn và hậu kiểm bất định.";
+    } catch (error) {
+      $("#segmentation-status").textContent = `Lỗi phân đoạn: ${error.message}. Kết quả trước đó không bị thay đổi.`;
     } finally {
       button.disabled = false;
       button.textContent = "Chạy segmentation";

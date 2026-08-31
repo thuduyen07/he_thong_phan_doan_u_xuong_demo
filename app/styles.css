@@ -378,6 +378,52 @@ th,
   margin-top: 16px;
 }
 
+.score-card.unavailable,
+.availability-note.unavailable {
+  background: #f4efe5;
+  border-style: dashed;
+}
+
+.score-detail,
+.availability-note p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.availability-note {
+  padding: 14px 16px;
+  border: 1px solid rgba(24, 32, 40, 0.1);
+  border-radius: 16px;
+  background: rgba(15, 108, 120, 0.06);
+}
+
+.heatmap-panel figcaption {
+  font-weight: 700;
+}
+
+.heatmap-legend {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.heatmap-legend i {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(23, 42, 79), rgb(249, 203, 82));
+}
+
+.run-status {
+  min-height: 1.4em;
+  margin: 14px 0 0;
+}
+
 .image-panel.compact {
   padding: 14px;
 }

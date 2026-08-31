@@ -138,7 +138,7 @@ python3 -m pip install -r requirements-inference.txt
 1. Mở web và xem phần `Pipeline` để nắm kiến trúc supervised -> mean teacher -> uncertainty -> adaptive CRC.
 2. Xem phần `Experiments` để kiểm tra các artifact còn lại sau khi dọn phương pháp cũ.
 3. Khi có checkpoint mới trong repo demo, tải ảnh mới ở phần `Live Lab`, chọn checkpoint, rồi chạy segmentation.
-4. Nếu checkpoint mới có conformal artifact, web sẽ hiển thị thêm prediction set hậu kiểm cùng các heatmap uncertainty.
+4. Live Lab hiển thị mask, probability map, predictive-entropy map và `H_G` được tính theo semantics đánh giá của checkpoint. `H_B` chỉ hiện giá trị khi boundary mechanism được bật trong config; CRC/conformal chỉ hiện khi có artifact checkpoint-specific hợp lệ. Đây là metadata hậu kiểm của mô hình, không phải độ tin cậy chẩn đoán lâm sàng.
 
 ## 7. Cấu trúc thư mục chính
 
