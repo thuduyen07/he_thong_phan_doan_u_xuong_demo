@@ -301,9 +301,15 @@ th,
   margin-top: 18px;
 }
 
-.result-gallery-wide {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
+.result-gallery-wide { display: grid; gap: 26px; }
+
+.result-image-section > h4 { margin: 0 0 10px; font-size: 1.05rem; }
+
+.result-image-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; max-width: 1120px; }
+
+.mask-disclosure { max-width: 550px; margin: 4px 0 0; }
+.mask-disclosure summary { cursor: pointer; font-weight: 700; color: var(--accent-cool); }
+.mask-disclosure .image-panel { margin-top: 12px; }
 
 .demo-tabs {
   display: inline-flex;
@@ -358,6 +364,12 @@ th,
   padding-top: 20px;
   border-top: 1px solid rgba(24, 32, 40, 0.08);
 }
+
+.audit-interpretation { margin-top: 16px; max-width: 900px; }
+.audit-interpretation article { padding: 14px 16px; border-left: 3px solid var(--accent-cool); border-radius: 12px; background: rgba(15, 108, 120, 0.06); }
+.audit-interpretation h4 { margin: 0 0 8px; }
+.audit-interpretation p { margin: 6px 0; color: var(--muted); line-height: 1.45; }
+.compact-risk { padding: 10px 14px; }
 
 .live-gallery {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
@@ -436,6 +448,11 @@ th,
   margin-top: 16px;
 }
 
+/* Entropy is presented beside probability in the primary two-image comparison. */
+#uncertainty-heatmaps {
+  display: none;
+}
+
 .score-card.unavailable,
 .availability-note.unavailable {
   background: #f4efe5;
@@ -495,6 +512,8 @@ th,
   .uncertainty-heatmaps {
     grid-template-columns: 1fr;
   }
+
+  .result-image-pair { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {

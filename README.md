@@ -11,6 +11,7 @@ Một codebase hỗ trợ hai mode rõ ràng qua biến môi trường `DEMO_MOD
 - Chỉ hiển thị các ảnh curated cùng segmentation, probability/entropy map và metric tham chiếu đã được chuẩn bị offline.
 - Không tải checkpoint, không gọi predictor, không cần `torch` hoặc `transformers`.
 - `H_G`, `H_B` và CRC chỉ hiện khi metadata đã được materialize từ pipeline nguồn; giá trị thiếu được ghi `—`, không suy diễn từ heatmap.
+- Kết quả Static ghép `Ảnh gốc` với `Lớp phủ phân đoạn`, và `Bản đồ xác suất vùng u` với `Bản đồ bất định dự đoán`; phần hậu kiểm diễn giải các đại lượng mô hình theo ngôn ngữ trung tính, không tạo confidence score.
 - Đây là mode khuyến nghị cho Render Free.
 
 ### Live Demo

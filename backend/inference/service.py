@@ -277,7 +277,6 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
 
     note = (
         "H_G là predictive entropy nhị phân chuẩn hóa của ảnh vừa segment; "
-        "không phải xác suất chẩn đoán lâm sàng."
     )
     conformal_available = bool(conformal_summary.get("available"))
     conformal_note = (

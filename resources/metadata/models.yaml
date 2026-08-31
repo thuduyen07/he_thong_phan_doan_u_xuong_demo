@@ -10,3 +10,14 @@ models:
     calibration_artifact: ""
     enabled: true
     description: Registered BTXRD Mean Teacher + entropy checkpoint. It uses the research default binary threshold 0.50; no CRC calibration artifact is required.
+  - id: btxrd_segformer_b0_boundary_adaptive_crc
+    display_name: SegFormer-B0 | BTXRD | Mean Teacher + boundary adaptive crc
+    dataset: btxrd
+    architecture: segformer_b0
+    method: boundary_adaptive_crc
+    config: resources/configs/btxrd_segformer_b0_boundary_adaptive_crc.yaml
+    checkpoint: resources/checkpoints/btxrd_segformer_b0_boundary_adaptive_crc_student_best.pt
+    threshold: 0.50
+    calibration_artifact: ""
+    enabled: true
+    description: Registered BTXRD Mean Teacher + boundary adaptive crc checkpoint. It uses the research default binary threshold 0.50;
