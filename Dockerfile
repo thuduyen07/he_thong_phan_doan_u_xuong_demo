@@ -1,11 +1,12 @@
 FROM python:3.11-slim-bookworm
 
-ARG INSTALL_INFERENCE=true
+ARG INSTALL_INFERENCE=false
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     INSTALL_INFERENCE=${INSTALL_INFERENCE} \
+    DEMO_MODE=static \
     HOST=0.0.0.0 \
     PORT=10000
 
@@ -37,7 +38,7 @@ RUN mkdir -p /app/runtime_static/uploads /app/runtime_static/results \
 
 USER appuser
 
-EXPOSE 4173
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
   CMD python -c "import os, sys, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.getenv('PORT', '10000')}/health\", timeout=3); sys.exit(0)"

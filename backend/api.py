@@ -2,48 +2,60 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from backend.deployment import DEPLOYMENT
 from backend.dashboard import get_dashboard_payload
-from backend.inference.service import (
-    APP_DIR,
-    RUNTIME_STATIC_DIR,
-    SAMPLE_DIR,
-    available_models,
-    delete_uploaded_image,
-    get_warmup_state,
-    list_demo_images,
-    run_segmentation,
-    store_upload,
-)
-from backend.inference.environment import validate_inference_environment
+from backend.inference.runtime_paths import APP_DIR, RUNTIME_STATIC_DIR
+from backend.static_samples import SAMPLE_DIR, get_static_result, list_static_samples
 
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
+def _live_service():
+    if not DEPLOYMENT.live_enabled:
+        return None
+    # Import only inside live-capable requests so a static deploy needs no ML runtime.
+    from backend.inference import service
+
+    return service
+
+
+def _feature_disabled_response():
+    return jsonify({"error": "FEATURE_DISABLED: Live Demo không được bật trong static deployment."}), 404
+
+
 @app.get("/health")
 def health():
-    return jsonify(
-        {
-            "status": "ok",
-            "predictor_warmup": get_warmup_state(),
-        }
-    )
+    payload = {"status": "ok", **DEPLOYMENT.as_payload()}
+    if DEPLOYMENT.live_enabled:
+        payload["predictor_warmup"] = _live_service().get_warmup_state()
+    return jsonify(payload)
+
+
+@app.get("/capabilities")
+def capabilities():
+    return jsonify(DEPLOYMENT.as_payload())
 
 
 @app.get("/models")
 def models():
-    return jsonify({"models": available_models(), "inference_runtime": validate_inference_environment()})
+    if not DEPLOYMENT.live_enabled:
+        return _feature_disabled_response()
+    from backend.inference.environment import validate_inference_environment
+
+    return jsonify({"models": _live_service().available_models(), "inference_runtime": validate_inference_environment()})
 
 
 @app.get("/api/models")
 def api_models():
-    return jsonify({"models": available_models(), "inference_runtime": validate_inference_environment()})
+    return models()
 
 
 @app.get("/dashboard")
 def dashboard():
-    return jsonify(get_dashboard_payload())
+    models = _live_service().available_models() if DEPLOYMENT.live_enabled else []
+    return jsonify(get_dashboard_payload(live_models=models))
 
 
 @app.get("/api/experiments")
@@ -53,31 +65,55 @@ def api_experiments():
 
 @app.get("/get_images")
 def get_images():
-    return jsonify(list_demo_images())
+    if not DEPLOYMENT.live_enabled:
+        return _feature_disabled_response()
+    return jsonify(_live_service().list_demo_images())
+
+
+@app.get("/static-samples")
+def static_samples():
+    return jsonify({"samples": list_static_samples()})
+
+
+@app.get("/static-samples/<sample_id>")
+def static_sample_result(sample_id: str):
+    try:
+        return jsonify(get_static_result(sample_id))
+    except FileNotFoundError as exc:
+        app.logger.warning("Static sample unavailable: %s", exc)
+        return jsonify({"error": "STATIC_SAMPLE_UNAVAILABLE: Không thể tải dữ liệu mẫu này."}), 404
 
 
 @app.post("/upload_images")
 def upload_images():
+    if not DEPLOYMENT.live_enabled:
+        return _feature_disabled_response()
     files = request.files.getlist("images")
     if not files:
         return jsonify({"error": "No files were uploaded under `images`."}), 400
-    return jsonify([store_upload(file_storage) for file_storage in files])
+    return jsonify([_live_service().store_upload(file_storage) for file_storage in files])
 
 
 @app.delete("/images/<image_id>")
 def delete_image(image_id: str):
-    return jsonify(delete_uploaded_image(image_id))
+    if not DEPLOYMENT.live_enabled:
+        return _feature_disabled_response()
+    return jsonify(_live_service().delete_uploaded_image(image_id))
 
 
 @app.post("/segment")
 def segment():
+    if not DEPLOYMENT.live_enabled:
+        return _feature_disabled_response()
     payload = request.get_json(silent=True) or {}
+    from backend.inference.environment import validate_inference_environment
+
     runtime = validate_inference_environment()
     if not runtime["available"]:
         app.logger.error("Live inference dependency import failed: %s", runtime["missing_dependencies"])
         return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
     try:
-        result = run_segmentation(
+        result = _live_service().run_segmentation(
             image_id=payload.get("image_id"),
             model_id=payload.get("model_id"),
         )
@@ -89,13 +125,16 @@ def segment():
         return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
     except FileNotFoundError:
         app.logger.exception("Live inference artifact was not found")
-        return jsonify({"error": "CHECKPOINT_NOT_FOUND: Không tìm thấy artifact model đã đăng ký."}), 503
+        return jsonify({"error": "MODEL_UNAVAILABLE: Model đã chọn hiện không khả dụng."}), 503
+    except KeyError:
+        app.logger.exception("Live inference model was not registered")
+        return jsonify({"error": "MODEL_UNAVAILABLE: Model đã chọn hiện không khả dụng."}), 404
     except ValueError:
         app.logger.exception("Live inference model configuration is invalid")
-        return jsonify({"error": "MODEL_CONFIG_INVALID: Cấu hình model không hợp lệ."}), 503
+        return jsonify({"error": "INVALID_IMAGE: Không thể đọc hoặc xử lý ảnh đã chọn."}), 400
     except RuntimeError:
         app.logger.exception("Live inference model initialization or execution failed")
-        return jsonify({"error": "MODEL_INITIALIZATION_FAILED: Không thể khởi tạo hoặc chạy model."}), 503
+        return jsonify({"error": "INFERENCE_FAILED: Không thể hoàn tất phân đoạn cho ảnh này."}), 503
     return jsonify(result)
 
 
@@ -129,12 +168,13 @@ def app_router(filename: str):
 
 @app.errorhandler(413)
 def upload_too_large(_error):
-    return jsonify({"error": "Ảnh tải lên vượt giới hạn 10 MB."}), 413
+    return jsonify({"error": "FILE_TOO_LARGE: Ảnh tải lên vượt giới hạn 10 MB."}), 413
 
 
 @app.errorhandler(ValueError)
 def invalid_request(error):
-    return jsonify({"error": str(error)}), 400
+    app.logger.warning("Invalid request: %s", error)
+    return jsonify({"error": "INVALID_IMAGE: Không thể đọc ảnh PNG hoặc JPEG hợp lệ."}), 400
 
 
 @app.errorhandler(Exception)

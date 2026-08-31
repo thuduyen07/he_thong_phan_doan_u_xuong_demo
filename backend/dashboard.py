@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.inference.service import available_models
-
-
 # These values are the verified thesis tables exported from the current research
 # repository. They deliberately do not depend on checkpoint discovery at startup.
 _BTXRD_BACKBONES = [
@@ -67,8 +64,8 @@ _FRACATLAS_ABLATION_PLACEHOLDER = [
 ]
 
 
-def get_dashboard_payload() -> dict[str, Any]:
-    live_models = available_models()
+def get_dashboard_payload(*, live_models: list[dict[str, object]] | None = None) -> dict[str, Any]:
+    live_models = live_models or []
     return {
         "thesis_title": "Xây dựng hệ thống phân đoạn u xương trên ảnh X-quang dựa trên kiến trúc Transformer",
         "disclaimer": "Kết quả chỉ phục vụ minh họa nghiên cứu và hậu kiểm mô hình; không phải kết luận chẩn đoán lâm sàng.",

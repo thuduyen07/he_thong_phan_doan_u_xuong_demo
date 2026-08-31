@@ -67,87 +67,57 @@
         <section class="panel" id="live-lab">
           <div class="panel-heading">
             <p class="section-tag">03. Demo phân đoạn</p>
-            <h2>Thử nghiệm trên ảnh X-quang</h2>
+            <h2>Minh họa phân đoạn</h2>
           </div>
-          <div class="lab-grid">
-            <aside class="lab-sidebar">
-              <div class="control-card">
-                <h3>Ảnh đầu vào</h3>
-                <div class="inline-actions">
-                  <button type="button" id="check-backend" class="action-button ghost">
-                    Kiểm tra backend
-                  </button>
-                  <button type="button" id="refresh-library" class="action-button ghost">
-                    Làm mới danh sách
-                  </button>
+          <div class="demo-tabs" role="tablist" aria-label="Chế độ demo">
+            <button type="button" class="demo-tab is-active" id="static-tab" role="tab" aria-selected="true">Static Demo</button>
+            <button type="button" class="demo-tab hidden" id="live-tab" role="tab" aria-selected="false">Live Demo</button>
+          </div>
+          <div class="demo-controls" id="static-demo-panel" role="tabpanel">
+            <div class="control-card compact-control">
+              <h3>Chọn trường hợp tham chiếu</h3>
+              <label class="field-label" for="static-sample-select">Ảnh mẫu curated</label>
+              <select id="static-sample-select" class="text-input"></select>
+              <p class="muted-note">Kết quả được chuẩn bị offline; không tải checkpoint hoặc chạy mô hình tại runtime.</p>
+              <p class="inline-error hidden" id="static-error" aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="demo-controls hidden" id="live-demo-panel" role="tabpanel">
+            <div class="control-card compact-control">
+              <h3>Live Demo</h3>
+              <label class="field-label" for="model-select">Model</label>
+              <select id="model-select" class="text-input"></select>
+              <label class="field-label" for="live-upload">Tải ảnh X-quang mới</label>
+              <input id="live-upload" class="text-input" type="file" accept="image/png,image/jpeg" />
+              <p class="muted-note">PNG hoặc JPEG, tối đa 10 MB. Ảnh upload sẽ được chọn tự động.</p>
+              <label class="field-label" for="image-select">Ảnh đầu vào</label>
+              <select id="image-select" class="text-input"></select>
+              <div class="live-preview image-frame"><img id="live-preview" alt="Xem trước ảnh đầu vào Live Demo" /></div>
+              <button type="button" id="run-live-segmentation" class="action-button">Chạy phân đoạn</button>
+              <p class="inline-error hidden" id="live-error" aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="lab-stage">
+            <div class="stage-card">
+              <div class="stage-header">
+                <div>
+                  <p class="stage-tag" id="stage-source">Prepared result</p>
+                  <h3 id="stage-title">Chọn một ảnh mẫu</h3>
                 </div>
-                <p class="muted-note" id="backend-status"></p>
-                <label class="field-label" for="live-upload">Tải ảnh X-quang mới</label>
-                <input id="live-upload" class="text-input" type="file" accept="image/*" />
-                <button type="button" id="upload-image" class="action-button">Tải ảnh lên</button>
-                <label class="field-label" for="image-select">Chọn ảnh để chạy</label>
-                <select id="image-select" class="text-input"></select>
-                <button type="button" id="delete-image" class="action-button ghost">Xóa ảnh upload</button>
+                <div class="badge-row" id="stage-badges"></div>
               </div>
-
-              <div class="control-card">
-                <h3>Checkpoint và suy luận</h3>
-                <label class="field-label" for="model-select">Model</label>
-                <select id="model-select" class="text-input"></select>
-                <button type="button" id="refresh-models" class="action-button ghost">
-                  Tải lại checkpoint
-                </button>
-                <button type="button" id="run-live-segmentation" class="action-button">
-                  Chạy segmentation
-                </button>
-              </div>
-            </aside>
-
-            <div class="lab-stage">
-              <div class="stage-card">
-                <div class="stage-header">
-                  <div>
-                    <p class="stage-tag">Inference output</p>
-                    <h3 id="stage-title">Chưa có kết quả</h3>
-                  </div>
-                  <div class="badge-row" id="stage-badges"></div>
-                </div>
-                <p class="stage-summary" id="stage-summary">
-                  Chọn một ảnh mẫu hoặc tải ảnh mới lên, sau đó chạy segmentation để xem mask, probability map và entropy hậu kiểm.
-                </p>
-                <div class="result-gallery live-gallery">
-                  <figure class="image-panel">
-                    <figcaption>Ảnh gốc</figcaption>
-                    <div class="image-frame">
-                      <img id="original-image" alt="Original X-ray" />
-                    </div>
-                  </figure>
-                  <div class="result-items" id="result-gallery"></div>
-                </div>
-                <div class="case-notes" id="case-notes"></div>
-                <p class="run-status muted-note" id="segmentation-status" aria-live="polite"></p>
-                <section class="uncertainty-panel hidden" id="uncertainty-panel">
-                  <div class="uncertainty-header">
-                    <div>
-                      <p class="section-tag">Predictive uncertainty</p>
-                      <h3>Hậu kiểm bất định của phân đoạn</h3>
-                    </div>
-                    <p class="muted-note" id="uncertainty-note"></p>
-                  </div>
-                  <div class="uncertainty-section">
-                    <h4>Entropy dự đoán</h4>
-                    <div class="uncertainty-score-grid" id="uncertainty-score-grid"></div>
-                    <div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div>
-                  </div>
-                  <div class="uncertainty-section" id="risk-control-section">
-                    <div class="uncertainty-subheader">
-                      <div><p class="section-tag">Risk control</p><h4>CRC / conformal applicability</h4></div>
-                      <p class="muted-note" id="risk-control-note"></p>
-                    </div>
-                    <div id="risk-control-status"></div>
-                  </div>
-                </section>
-              </div>
+              <p class="stage-summary" id="stage-summary">Static Demo sẽ hiển thị kết quả segmentation và hậu kiểm đã được chuẩn bị sẵn.</p>
+              <div class="result-gallery result-gallery-wide" id="result-gallery"></div>
+              <section class="reference-metrics hidden" id="reference-metrics">
+                <p class="section-tag">Reference metrics</p><h4>Hiệu năng trên mẫu tham chiếu</h4>
+                <div class="uncertainty-score-grid" id="reference-metrics-grid"></div>
+              </section>
+              <section class="uncertainty-panel hidden" id="uncertainty-panel">
+                <div class="uncertainty-header"><div><p class="section-tag">Predictive uncertainty</p><h3>Bất định và hậu kiểm</h3></div><p class="muted-note" id="uncertainty-note"></p></div>
+                <div class="uncertainty-section"><div class="uncertainty-score-grid" id="uncertainty-score-grid"></div><div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div></div>
+                <div class="uncertainty-section"><div class="uncertainty-subheader"><div><p class="section-tag">Risk control</p><h4>CRC / conformal applicability</h4></div><p class="muted-note" id="risk-control-note"></p></div><div id="risk-control-status"></div></div>
+              </section>
+              <p class="run-status muted-note" id="segmentation-status" aria-live="polite"></p>
             </div>
           </div>
         </section>

@@ -7,10 +7,16 @@ import argparse
 import csv
 import math
 import shutil
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import yaml
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 SUPPORTED_DATASETS = ("btxrd", "fracatlas", "bv_chinhhinh")
@@ -135,19 +141,74 @@ def build_manifest(dataset: str, source_evaluation: dict, selections: dict[str, 
     return entries, len(unique_sources)
 
 
+def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: str) -> None:
+    """Materialize only curated samples through the already-registered live adapter.
+
+    This command is offline preparation. It is never invoked by Flask startup or
+    Static Demo, and reuses one predictor instance through the live service cache.
+    """
+    from backend.inference.service import run_segmentation
+
+    payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"samples": []}
+    entries = payload.get("samples", []) if isinstance(payload, dict) else []
+    generated: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source_id = str(entry.get("original_image_id", "")).strip()
+        if not source_id:
+            continue
+        result = generated.get(source_id)
+        if result is None:
+            result = run_segmentation(image_id=f"default:{entry['id']}", model_id=model_id)
+            generated[source_id] = result
+        artifact_dir = Path("artifacts") / str(entry.get("dataset", "generic")) / source_id
+        destination = output_dir / artifact_dir
+        destination.mkdir(parents=True, exist_ok=True)
+        source_names = {
+            "mask": result["mask_image_url"],
+            "overlay": result["overlay_image_url"],
+            "probability": result["uncertainty"]["tumor_probability"].get("heatmap_url"),
+            "entropy": result["uncertainty"]["pixel_entropy"].get("heatmap_url"),
+        }
+        for name, url in source_names.items():
+            if not url:
+                continue
+            source = PROJECT_ROOT / url.lstrip("/")
+            if not source.is_file():
+                raise FileNotFoundError(f"Prepared live artifact does not exist: {source}")
+            shutil.copy2(source, destination / f"{name}.png")
+        entry["static_artifact_dir"] = artifact_dir.as_posix()
+        entry["uncertainty"] = {
+            "global": result["uncertainty"].get("global", {}),
+            "boundary": result["uncertainty"].get("boundary", {}),
+            "summary": result["uncertainty"].get("summary", {}),
+        }
+        entry["risk_control"] = result["uncertainty"].get("risk_control", {})
+    manifest_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    print(f"prepared_static_samples={len(generated)} manifest={manifest_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", required=True, choices=SUPPORTED_DATASETS)
-    parser.add_argument("--metrics-csv", required=True, type=Path)
-    parser.add_argument("--source-root", required=True, type=Path, help="Research repository's `outputs` directory.")
+    parser.add_argument("--dataset", choices=SUPPORTED_DATASETS)
+    parser.add_argument("--metrics-csv", type=Path)
+    parser.add_argument("--source-root", type=Path, help="Research repository's `outputs` directory.")
     parser.add_argument("--output-dir", type=Path, default=Path("resources/samples"))
     parser.add_argument("--manifest", type=Path, default=Path("resources/samples/samples.yaml"))
     parser.add_argument("--method", default="mean_teacher_entropy")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split", default="test")
     parser.add_argument("--confirm-public-deidentified", action="store_true", help="Required before copying medical-image assets.")
+    parser.add_argument("--prepare-static-artifacts", action="store_true", help="Run only curated samples through the registered live adapter and materialize deployable artifacts.")
+    parser.add_argument("--static-model-id", help="Registered model id used only with --prepare-static-artifacts.")
     args = parser.parse_args()
-    if not args.metrics_csv.is_file() or not args.source_root.is_dir():
+    if args.prepare_static_artifacts:
+        if not args.static_model_id:
+            raise ValueError("--static-model-id is required with --prepare-static-artifacts.")
+        prepare_static_artifacts(args.manifest, args.output_dir, args.static_model_id)
+        return
+    if not args.dataset or not args.metrics_csv or not args.source_root or not args.metrics_csv.is_file() or not args.source_root.is_dir():
         raise FileNotFoundError("Metrics CSV or source root does not exist.")
 
     source_evaluation = {"report": args.metrics_csv.name, "dataset": args.dataset, "method": args.method, "seed": args.seed, "split": args.split}

@@ -5,6 +5,7 @@ samples:
   case_type: fn
   original_image_id: IMG001237
   file: btxrd/btxrd_IMG001237.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG001237
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -24,12 +25,39 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: false
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.0006914715049788356
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.0006914715049788356
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.000110626220703125
+      predicted_tumor_ratio: 0.0
+      mean_tumor_probability: 9.607462561689317e-05
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_fp_IMG003246
   display_name: '[sample] btxrd_FP_IMG003246'
   dataset: btxrd
   case_type: fp
   original_image_id: IMG003246
   file: btxrd/btxrd_IMG003246.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG003246
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -49,12 +77,39 @@ samples:
   foreground_presence:
     ground_truth: false
     prediction: true
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.038410503417253494
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.038410503417253494
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.03890228271484375
+      predicted_tumor_ratio: 0.02982330322265625
+      mean_tumor_probability: 0.030286820605397224
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_tn_IMG001924
   display_name: '[sample] btxrd_TN_IMG001924'
   dataset: btxrd
   case_type: tn
   original_image_id: IMG001924
   file: btxrd/btxrd_IMG001924.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG001924
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -74,12 +129,39 @@ samples:
   foreground_presence:
     ground_truth: false
     prediction: false
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.0001001813798211515
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.0001001813798211515
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.0
+      predicted_tumor_ratio: 0.0
+      mean_tumor_probability: 7.898115654825233e-06
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_tp_IMG001564
   display_name: '[sample] btxrd_TP_IMG001564'
   dataset: btxrd
   case_type: tp
   original_image_id: IMG001564
   file: btxrd/btxrd_IMG001564.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG001564
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -99,12 +181,39 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.05368884652853012
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.05368884652853012
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.043338775634765625
+      predicted_tumor_ratio: 0.13997268676757812
+      mean_tumor_probability: 0.13989999890327454
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_best_dice_IMG001462
   display_name: '[sample] btxrd_Best_Dice_IMG001462'
   dataset: btxrd
   case_type: best_dice
   original_image_id: IMG001462
   file: btxrd/btxrd_IMG001462.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG001462
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -124,12 +233,39 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global: &id001
+      available: true
+      name: H_G
+      value: 0.009928608313202858
+      definition: mean_normalized_binary_predictive_entropy
+    boundary: &id002
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary: &id003
+      available: true
+      global_entropy: 0.009928608313202858
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.007846832275390625
+      predicted_tumor_ratio: 0.06749343872070312
+      mean_tumor_probability: 0.06704457104206085
+  risk_control: &id004
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_worst_dice_IMG000023
   display_name: '[sample] btxrd_Worst_Dice_IMG000023'
   dataset: btxrd
   case_type: worst_dice
   original_image_id: IMG000023
   file: btxrd/btxrd_IMG000023.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG000023
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -149,12 +285,39 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global: &id005
+      available: true
+      name: H_G
+      value: 0.003502964973449707
+      definition: mean_normalized_binary_predictive_entropy
+    boundary: &id006
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary: &id007
+      available: true
+      global_entropy: 0.003502964973449707
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.00249481201171875
+      predicted_tumor_ratio: 0.00212860107421875
+      mean_tumor_probability: 0.0024192524142563343
+  risk_control: &id008
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_best_iou_IMG001462
   display_name: '[sample] btxrd_Best_IoU_IMG001462'
   dataset: btxrd
   case_type: best_iou
   original_image_id: IMG001462
   file: btxrd/btxrd_IMG001462.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG001462
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -174,12 +337,18 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global: *id001
+    boundary: *id002
+    summary: *id003
+  risk_control: *id004
 - id: btxrd_worst_iou_IMG000023
   display_name: '[sample] btxrd_Worst_IoU_IMG000023'
   dataset: btxrd
   case_type: worst_iou
   original_image_id: IMG000023
   file: btxrd/btxrd_IMG000023.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG000023
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -199,12 +368,18 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global: *id005
+    boundary: *id006
+    summary: *id007
+  risk_control: *id008
 - id: btxrd_best_hd95_IMG000335
   display_name: '[sample] btxrd_Best_HD95_IMG000335'
   dataset: btxrd
   case_type: best_hd95
   original_image_id: IMG000335
   file: btxrd/btxrd_IMG000335.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG000335
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -224,12 +399,39 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.00017718574963510036
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.00017718574963510036
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.000148773193359375
+      predicted_tumor_ratio: 0.0007476806640625
+      mean_tumor_probability: 0.0007467315881513059
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
 - id: btxrd_worst_hd95_IMG000258
   display_name: '[sample] btxrd_Worst_HD95_IMG000258'
   dataset: btxrd
   case_type: worst_hd95
   original_image_id: IMG000258
   file: btxrd/btxrd_IMG000258.jpeg
+  static_artifact_dir: artifacts/btxrd/IMG000258
   source_evaluation:
     report: per_case_metrics.csv
     dataset: btxrd
@@ -249,3 +451,29 @@ samples:
   foreground_presence:
     ground_truth: true
     prediction: true
+  uncertainty:
+    global:
+      available: true
+      name: H_G
+      value: 0.003905088175088167
+      definition: mean_normalized_binary_predictive_entropy
+    boundary:
+      available: false
+      name: H_B
+      value: null
+      boundary_pixel_count: null
+      reason: boundary_disabled_in_model_config
+    summary:
+      available: true
+      global_entropy: 0.003905088175088167
+      boundary_entropy: null
+      boundary_available: false
+      boundary_pixel_count: null
+      uncertain_pixel_ratio: 0.003612518310546875
+      predicted_tumor_ratio: 0.00243377685546875
+      mean_tumor_probability: 0.0028973398730158806
+  risk_control:
+    available: false
+    reason: not_applicable
+    note: "Checkpoint n\xE0y kh\xF4ng d\xF9ng CRC/conformal khi suy lu\u1EADn live;\
+      \ web kh\xF4ng t\u1EA1o risk-control metadata thay th\u1EBF."
