@@ -57,70 +57,27 @@
     return String(value);
   }
 
-  function renderHeroMetrics() {
-    const metrics = state.dashboard.hero_metrics || [];
-    $("#hero-metrics").innerHTML = metrics
-      .map(
-        (item) => `
-          <article class="metric-card">
-            <p class="metric-value">${escapeHtml(item.value)}</p>
-            <p class="metric-label">${escapeHtml(item.label)}</p>
-            <p class="metric-note">${escapeHtml(item.note)}</p>
-          </article>
-        `
-      )
-      .join("");
-  }
+  const metricDefinitions = {
+    dice: { direction: "max" },
+    iou: { direction: "max" },
+    hd95: { direction: "min" },
+    precision: { direction: "max" },
+    recall: { direction: "max" },
+  };
 
-  function renderStackList(containerId, items) {
-    document.getElementById(containerId).innerHTML = items
-      .map((item) => `<p>${escapeHtml(item)}</p>`)
-      .join("");
-  }
-
-  function renderPipeline() {
-    const pipeline = state.dashboard.pipeline || {};
-
-    $("#pipeline-strip").innerHTML = (pipeline.modules || [])
-      .map(
-        (item, index) => `
-          <article class="pipeline-card">
-            <div class="pipeline-step">${index + 1}</div>
-            <h3>${escapeHtml(item.title)}</h3>
-            <p>${escapeHtml(item.summary)}</p>
-            <div class="card-list">
-              ${(item.details || []).map((detail) => `<span>${escapeHtml(detail)}</span>`).join("")}
-            </div>
-          </article>
-        `
-      )
-      .join("");
-
-    $("#schedule-grid").innerHTML = (pipeline.schedule || [])
-      .map(
-        (item) => `
-          <article class="schedule-card">
-            <p class="mini-tag">${escapeHtml(item.epoch_range)}</p>
-            <h3>${escapeHtml(item.phase)}</h3>
-            <p>${escapeHtml(item.purpose)}</p>
-            <div class="badge-row">
-              ${(item.signals || []).map((signal) => `<span class="pill">${escapeHtml(signal)}</span>`).join("")}
-            </div>
-          </article>
-        `
-      )
-      .join("");
-
-    $("#formula-list").innerHTML = (pipeline.formulas || [])
-      .map(
-        (item) => `
-          <article class="formula-card">
-            <p class="formula-label">${escapeHtml(item.label)}</p>
-            <code>${escapeHtml(item.value)}</code>
-          </article>
-        `
-      )
-      .join("");
+  function getBestMetricValues(columns, rows) {
+    return new Map(
+      columns
+        .filter((column) => column.metric)
+        .map((column) => {
+          const values = rows.map((row) => Number(row[column.key])).filter(Number.isFinite);
+          if (!values.length) {
+            return [column.key, null];
+          }
+          const best = metricDefinitions[column.metric].direction === "min" ? Math.min(...values) : Math.max(...values);
+          return [column.key, best];
+        })
+    );
   }
 
   function buildTable(columns, rows) {
@@ -128,13 +85,19 @@
       return '<p class="muted-note">Chưa có dữ liệu.</p>';
     }
 
+    const bestMetricValues = getBestMetricValues(columns, rows);
     const header = columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
     const body = rows
       .map(
         (row) => `
           <tr>
             ${columns
-              .map((column) => `<td>${escapeHtml(column.render ? column.render(row) : row[column.key])}</td>`)
+              .map((column) => {
+                const value = column.render ? column.render(row) : row[column.key];
+                const isBest = bestMetricValues.get(column.key) === Number(row[column.key]);
+                const content = column.html ? value : escapeHtml(value);
+                return `<td>${isBest ? `<strong class="metric-best">${content}</strong>` : content}</td>`;
+              })
               .join("")}
           </tr>
         `
@@ -151,21 +114,43 @@
     `;
   }
 
+  function renderDatasetTable() {
+    const datasets = state.dashboard.overview?.datasets || [];
+    const columns = [
+      {
+        label: "Bộ dữ liệu",
+        key: "name",
+        html: true,
+        render: (row) => `<strong>${escapeHtml(row.name)}</strong><span class="table-description">${escapeHtml(row.description)}</span>`,
+      },
+      { label: "Tổng", key: "total", render: (row) => Number(row.total).toLocaleString("vi-VN") },
+      { label: "Dương tính", key: "positive", render: (row) => Number(row.positive).toLocaleString("vi-VN") },
+      { label: "Âm tính", key: "negative", render: (row) => Number(row.negative).toLocaleString("vi-VN") },
+      { label: "Train", key: "train" },
+      { label: "Val", key: "validation" },
+      { label: "Hiệu chỉnh phát triển", key: "development_calibration" },
+      { label: "Hiệu chỉnh cuối", key: "final_calibration" },
+      { label: "Test", key: "test" },
+    ];
+    $("#dataset-table").innerHTML = buildTable(columns, datasets);
+  }
+
   function renderExperimentTables() {
     const experiments = state.dashboard.experiments || {};
+    const formatTableMetric = (value) => (Number.isFinite(Number(value)) ? formatNumber(value, 3) : formatMetricValue(value));
     const backboneColumns = [
-      { label: "Model", key: "model" }, { label: "Dice ↑", render: (row) => formatNumber(row.dice, 3) },
-      { label: "IoU ↑", render: (row) => formatNumber(row.iou, 3) }, { label: "HD95 ↓", render: (row) => formatNumber(row.hd95, 3) },
-      { label: "Precision ↑", render: (row) => formatNumber(row.precision, 3) }, { label: "Recall ↑", render: (row) => formatNumber(row.recall, 3) },
+      { label: "Model", key: "model" }, { label: "Dice ↑", key: "dice", metric: "dice", render: (row) => formatNumber(row.dice, 3) },
+      { label: "IoU ↑", key: "iou", metric: "iou", render: (row) => formatNumber(row.iou, 3) }, { label: "HD95 ↓", key: "hd95", metric: "hd95", render: (row) => formatNumber(row.hd95, 3) },
+      { label: "Precision ↑", key: "precision", metric: "precision", render: (row) => formatNumber(row.precision, 3) }, { label: "Recall ↑", key: "recall", metric: "recall", render: (row) => formatNumber(row.recall, 3) },
     ];
     const ablationColumns = [
-      { label: "Phương pháp", key: "method" }, { label: "Dice ↑", render: (row) => formatNumber(row.dice, 3) },
-      { label: "IoU ↑", render: (row) => formatNumber(row.iou, 3) }, { label: "HD95 ↓", render: (row) => formatNumber(row.hd95, 3) },
+      { label: "Phương pháp", key: "method" }, { label: "Dice ↑", key: "dice", metric: "dice", render: (row) => formatTableMetric(row.dice) },
+      { label: "IoU ↑", key: "iou", metric: "iou", render: (row) => formatTableMetric(row.iou) }, { label: "HD95 ↓", key: "hd95", metric: "hd95", render: (row) => formatTableMetric(row.hd95) },
     ];
     $("#btxrd-backbones-table").innerHTML = buildTable(backboneColumns, experiments.btxrd_backbones || []);
     $("#btxrd-ablation-table").innerHTML = buildTable(ablationColumns, experiments.btxrd_ablation || []);
     $("#fracatlas-backbones-table").innerHTML = buildTable(backboneColumns, experiments.fracatlas_backbones || []);
-    renderStackList("artifact-status", experiments.notes || []);
+    $("#fracatlas-ablation-table").innerHTML = buildTable(ablationColumns, experiments.fracatlas_ablation || []);
   }
 
   function flattenImages() {
@@ -331,12 +316,8 @@
 
   async function loadDashboard() {
     state.dashboard = await fetchJson("/dashboard");
-    $("#thesis-title").textContent = state.dashboard.thesis_title;
     $("#research-disclaimer").textContent = state.dashboard.disclaimer;
-    renderStackList("overview-summary", state.dashboard.overview.summary || []);
-    $("#dataset-summary").innerHTML = (state.dashboard.overview.datasets || []).map((item) => `<article class="story-card"><h3>${escapeHtml(item.name)}</h3><p class="body-copy">${escapeHtml(item.description)}</p><p class="muted-note">${escapeHtml(item.split)}</p></article>`).join("");
-    renderHeroMetrics();
-    renderPipeline();
+    renderDatasetTable();
   }
 
   async function loadModels() {

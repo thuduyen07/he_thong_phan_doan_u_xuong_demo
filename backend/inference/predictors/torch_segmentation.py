@@ -6,6 +6,7 @@ import threading
 import numpy as np
 from PIL import Image
 from pathlib import Path
+import yaml
 
 from backend.inference.contracts import PredictionArtifacts
 from backend.inference.device import resolve_inference_device
@@ -15,7 +16,6 @@ from backend.inference.runtime_paths import RESOURCES_DIR, ensure_runtime_paths
 
 ensure_runtime_paths()
 
-from runtime_src.common.io_utils import load_yaml  # noqa: E402
 from runtime_src.common.uncertainty import (  # noqa: E402
     build_binary_conformal_region_maps,
     binary_boundary_band,

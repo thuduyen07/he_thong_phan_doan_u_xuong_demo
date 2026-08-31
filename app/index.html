@@ -17,37 +17,26 @@
             các biến thể kiểm soát rủi ro. Kết quả chỉ hỗ trợ hậu kiểm nghiên cứu,
             không phải kết luận chẩn đoán lâm sàng.
           </p>
+          <nav class="section-nav" aria-label="Điều hướng nội dung">
+            <a href="#experimental-data">Dữ liệu thực nghiệm</a>
+            <a href="#experiments">Kết quả thực nghiệm</a>
+            <a href="#live-lab">Demo phân đoạn</a>
+          </nav>
           <div class="hero-actions">
             <a href="#live-lab" class="primary-link">Chạy thử trên ảnh mới</a>
             <a href="#experiments" class="secondary-link">Xem kết quả thực nghiệm</a>
           </div>
         </div>
-        <div class="hero-metrics" id="hero-metrics"></div>
       </header>
 
       <main class="content-grid">
-        <section class="panel spotlight-panel" id="system-overview">
+        <section class="panel spotlight-panel" id="experimental-data">
           <div class="panel-heading">
-            <p class="section-tag">01. Tổng quan</p>
-            <h2>Phạm vi và phương pháp nghiên cứu</h2>
+            <p class="section-tag">01. Dữ liệu thực nghiệm</p>
+            <h2>BTXRD và FracAtlas</h2>
           </div>
-          <div class="overview-grid">
-            <div class="story-card">
-              <h3>Đề tài</h3>
-              <p id="thesis-title" class="body-copy"></p>
-            </div>
-            <div class="story-card">
-              <h3>Phạm vi demo</h3>
-              <div id="overview-summary" class="stack-list"></div>
-            </div>
-            <div class="story-card">
-              <h3>Công thức chính</h3>
-              <div id="formula-list" class="formula-list"></div>
-            </div>
-          </div>
-          <div id="dataset-summary" class="overview-grid"></div>
-          <div class="pipeline-strip" id="pipeline-strip"></div>
-          <div class="schedule-grid" id="schedule-grid"></div>
+          <p class="section-intro">Tập dữ liệu và phân chia cố định dùng cho các thí nghiệm được trình bày.</p>
+          <div id="dataset-table"></div>
         </section>
 
         <section class="panel" id="experiments">
@@ -67,7 +56,11 @@
           </div>
           <div class="results-grid two-up">
             <div class="result-card"><h3>FracAtlas: backbone comparison</h3><div id="fracatlas-backbones-table"></div></div>
-            <div class="result-card"><h3>Diễn giải</h3><div id="artifact-status" class="stack-list"></div></div>
+            <div class="result-card">
+              <h3>FracAtlas: SegFormer-B0 ablation</h3>
+              <p class="muted-note">Kết quả đang được cập nhật.</p>
+              <div id="fracatlas-ablation-table"></div>
+            </div>
           </div>
         </section>
 
@@ -107,9 +100,6 @@
                 <button type="button" id="run-live-segmentation" class="action-button">
                   Chạy segmentation
                 </button>
-                <p class="muted-note">
-                  Model chỉ khả dụng khi checkpoint, config và artifact hiệu chỉnh tương ứng được khai báo phía server. Ảnh upload không có Dice/IoU/HD95 vì không có mask tham chiếu.
-                </p>
               </div>
             </aside>
 
@@ -162,17 +152,6 @@
           </div>
         </section>
 
-        <section class="panel" id="guide">
-          <div class="panel-heading">
-            <p class="section-tag">04. Hướng dẫn / Giới thiệu</p>
-            <h2>Sử dụng demo có trách nhiệm</h2>
-          </div>
-          <div class="overview-grid">
-            <article class="story-card"><h3>1. Chọn bối cảnh</h3><p class="body-copy">BTXRD là dữ liệu u xương; FracAtlas là benchmark fracture và chỉ dùng để đánh giá khả năng khái quát hóa.</p></article>
-            <article class="story-card"><h3>2. Chạy inference</h3><p class="body-copy">Upload ảnh, sau đó chọn model chỉ khi registry báo khả dụng. Server không nhận đường dẫn checkpoint từ trình duyệt.</p></article>
-            <article class="story-card"><h3>3. Đọc kết quả</h3><p class="body-copy">Mask, overlay, xác suất và uncertainty là output nghiên cứu. Dice/IoU/HD95 chỉ có ý nghĩa khi có mask tham chiếu.</p></article>
-          </div>
-        </section>
       </main>
       <footer class="panel"><p class="muted-note" id="research-disclaimer"></p></footer>
     </div>
