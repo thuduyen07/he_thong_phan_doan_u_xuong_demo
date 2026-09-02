@@ -27,32 +27,58 @@ _FRACATLAS_BACKBONES = [
     {"model": "SegFormer-B0", "dice": 0.457, "iou": 0.350, "hd95": 50.201, "precision": 0.476, "recall": 0.510},
 ]
 
-_DATASETS = [
+_DATASET_SPLITS = [
     {
+        "id": "btxrd",
         "name": "BTXRD",
         "description": "Ảnh X-quang dùng cho thí nghiệm phân đoạn u xương.",
-        "total": 3746,
-        "positive": 1867,
-        "negative": 1879,
-        "train": 2247,
-        "validation": 375,
-        "development_calibration": 375,
-        "final_calibration": 375,
-        "test": 374,
+        "title": "Phân bố dữ liệu BTXRD trong các tập thực nghiệm với seed 42.",
+        "rows": [
+            {"split": "Huấn luyện", "images": 2247, "positive": 1120, "negative": 1127, "ratio": "60%"},
+            {"split": "Xác thực", "images": 375, "positive": 187, "negative": 188, "ratio": "10%"},
+            {"split": "Hiệu chỉnh phát triển", "images": 375, "positive": 187, "negative": 188, "ratio": "10%"},
+            {"split": "Hiệu chỉnh cuối", "images": 375, "positive": 187, "negative": 188, "ratio": "10%"},
+            {"split": "Kiểm thử", "images": 374, "positive": 186, "negative": 188, "ratio": "10%"},
+            {"split": "Tổng", "images": 3746, "positive": 1867, "negative": 1879, "ratio": "100%", "is_total": True},
+        ],
     },
     {
+        "id": "fracatlas",
         "name": "FracAtlas",
         "description": "Ảnh X-quang cơ xương có nhãn gãy xương, dùng làm benchmark bổ sung.",
-        "total": 4024,
-        "positive": 719,
-        "negative": 3305,
-        "train": 2414,
-        "validation": 403,
-        "development_calibration": 403,
-        "final_calibration": 402,
-        "test": 402,
+        "title": "Phân bố dữ liệu FracAtlas trong các tập thực nghiệm với seed 42.",
+        "rows": [
+            {"split": "Huấn luyện", "images": 2414, "positive": 431, "negative": 1983, "ratio": "60%"},
+            {"split": "Xác thực", "images": 403, "positive": 72, "negative": 331, "ratio": "10%"},
+            {"split": "Hiệu chỉnh phát triển", "images": 403, "positive": 72, "negative": 331, "ratio": "10%"},
+            {"split": "Hiệu chỉnh cuối", "images": 402, "positive": 72, "negative": 330, "ratio": "10%"},
+            {"split": "Kiểm thử", "images": 402, "positive": 72, "negative": 330, "ratio": "10%"},
+            {"split": "Tổng", "images": 4024, "positive": 719, "negative": 3305, "ratio": "100%", "is_total": True},
+        ],
     },
 ]
+
+
+def _dataset_overview_rows() -> list[dict[str, object]]:
+    """Compatibility summary derived from the explicit split-table source."""
+    records = []
+    for dataset in _DATASET_SPLITS:
+        total = dataset["rows"][-1]
+        records.append(
+            {
+                "name": dataset["name"],
+                "description": dataset["description"],
+                "total": total["images"],
+                "positive": total["positive"],
+                "negative": total["negative"],
+                "train": dataset["rows"][0]["images"],
+                "validation": dataset["rows"][1]["images"],
+                "development_calibration": dataset["rows"][2]["images"],
+                "final_calibration": dataset["rows"][3]["images"],
+                "test": dataset["rows"][4]["images"],
+            }
+        )
+    return records
 
 _FRACATLAS_ABLATION_PLACEHOLDER = [
     {"method": "Supervised", "dice": "—", "iou": "—", "hd95": "—"},
@@ -63,6 +89,68 @@ _FRACATLAS_ABLATION_PLACEHOLDER = [
     {"method": "Boundary-Adaptive CRC", "dice": "—", "iou": "—", "hd95": "—"},
 ]
 
+_EXPERIMENT_SECTIONS = [
+    {
+        "id": "btxrd_backbones",
+        "title": "BTXRD: backbone comparison",
+        "row_label": "Model",
+        "row_key": "model",
+        "metrics": [
+            {"key": "dice", "label": "Dice ↑", "direction": "max"},
+            {"key": "iou", "label": "IoU ↑", "direction": "max"},
+            {"key": "precision", "label": "Precision ↑", "direction": "max"},
+            {"key": "recall", "label": "Recall ↑", "direction": "max"},
+            {"key": "hd95", "label": "HD95 ↓", "direction": "min"},
+        ],
+        "rows": _BTXRD_BACKBONES,
+        "primary_value": "SegFormer-B0",
+        "primary_badge": "Phương pháp đề xuất",
+    },
+    {
+        "id": "btxrd_ablation",
+        "title": "BTXRD: SegFormer-B0 ablation",
+        "row_label": "Phương pháp",
+        "row_key": "method",
+        "metrics": [
+            {"key": "dice", "label": "Dice ↑", "direction": "max"},
+            {"key": "iou", "label": "IoU ↑", "direction": "max"},
+            {"key": "hd95", "label": "HD95 ↓", "direction": "min"},
+        ],
+        "rows": _BTXRD_ABLATION,
+        "primary_value": "Boundary-Adaptive CRC",
+        "primary_badge": "Phương pháp đề xuất",
+    },
+    {
+        "id": "fracatlas_backbones",
+        "title": "FracAtlas: backbone comparison",
+        "row_label": "Model",
+        "row_key": "model",
+        "metrics": [
+            {"key": "dice", "label": "Dice ↑", "direction": "max"},
+            {"key": "iou", "label": "IoU ↑", "direction": "max"},
+            {"key": "precision", "label": "Precision ↑", "direction": "max"},
+            {"key": "recall", "label": "Recall ↑", "direction": "max"},
+            {"key": "hd95", "label": "HD95 ↓", "direction": "min"},
+        ],
+        "rows": _FRACATLAS_BACKBONES,
+        "primary_value": "SegFormer-B0",
+        "primary_badge": "Phương pháp đề xuất",
+    },
+    {
+        "id": "fracatlas_ablation",
+        "title": "FracAtlas: SegFormer-B0 ablation",
+        "row_label": "Phương pháp",
+        "row_key": "method",
+        "metrics": [
+            {"key": "dice", "label": "Dice ↑", "direction": "max"},
+            {"key": "iou", "label": "IoU ↑", "direction": "max"},
+            {"key": "hd95", "label": "HD95 ↓", "direction": "min"},
+        ],
+        "rows": _FRACATLAS_ABLATION_PLACEHOLDER,
+        "note": "Kết quả đang được cập nhật.",
+    },
+]
+
 
 def get_dashboard_payload(*, live_models: list[dict[str, object]] | None = None) -> dict[str, Any]:
     live_models = live_models or []
@@ -70,7 +158,8 @@ def get_dashboard_payload(*, live_models: list[dict[str, object]] | None = None)
         "thesis_title": "Xây dựng hệ thống phân đoạn u xương trên ảnh X-quang dựa trên kiến trúc Transformer",
         "disclaimer": "Kết quả chỉ phục vụ minh họa nghiên cứu và hậu kiểm mô hình; không phải kết luận chẩn đoán lâm sàng.",
         "overview": {
-            "datasets": _DATASETS,
+            "dataset_splits": _DATASET_SPLITS,
+            "datasets": _dataset_overview_rows(),
             "default_model_id": live_models[0]["model_id"] if live_models else None,
         },
         "experiments": {
@@ -78,6 +167,7 @@ def get_dashboard_payload(*, live_models: list[dict[str, object]] | None = None)
             "btxrd_ablation": _BTXRD_ABLATION,
             "fracatlas_backbones": _FRACATLAS_BACKBONES,
             "fracatlas_ablation": _FRACATLAS_ABLATION_PLACEHOLDER,
+            "sections": _EXPERIMENT_SECTIONS,
         },
         "models": {"available": len(live_models)},
     }

@@ -98,12 +98,30 @@ class TorchSegmentationPredictor(SegmentationPredictor):
         ).view(3, 1, 1)
         if torch.any(self.normalization_std <= 0):
             raise ValueError("Normalization standard deviations must be positive.")
-        self.binary_threshold = float(self.cfg.get("binary_threshold", 0.5))
-        self.threshold_source = "config.binary_threshold" if "binary_threshold" in self.cfg else "research_default"
+        spec_metadata = dict(self.spec.extra_metadata or {})
+        if "binary_threshold" in self.cfg:
+            self.binary_threshold = float(self.cfg["binary_threshold"])
+            self.threshold_source = "config.binary_threshold"
+        elif spec_metadata.get("threshold") is not None:
+            self.binary_threshold = float(spec_metadata["threshold"])
+            self.threshold_source = "registry.threshold"
+        else:
+            self.binary_threshold = 0.5
+            self.threshold_source = "research_default"
+        if not 0.0 <= self.binary_threshold <= 1.0:
+            raise ValueError("Binary inference threshold must be within [0, 1].")
         self.uncertainty_threshold = float(dict(self.cfg.get("uncertainty_weighting", {})).get("analysis_threshold", 0.5))
         self.boundary_enabled = bool(dict(self.cfg.get("boundary", {})).get("enabled", False))
         self.boundary_radius = int(dict(self.cfg.get("boundary", {})).get("radius", 1))
-        if bool(dict(self.cfg.get("conformal", {})).get("enabled", False)):
+        self.requires_calibration_at_inference = bool(
+            spec_metadata.get("requires_calibration_at_inference", False)
+        )
+        training_conformal_enabled = bool(dict(self.cfg.get("conformal", {})).get("enabled", False))
+        if training_conformal_enabled and not bool(spec_metadata.get("inference_calibration_declared", False)):
+            raise ValueError(
+                "A conformal-trained checkpoint must explicitly declare whether calibration is required at live inference."
+            )
+        if self.requires_calibration_at_inference:
             raise ValueError("Live CRC inference requires a packaged research CRC adapter and matching state artifact.")
 
     def _load_model(self):
@@ -322,12 +340,10 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             probability = torch.sigmoid(logits[:, :1].contiguous())
             mask = (probability[:, 0] >= self.binary_threshold).to(dtype=torch.uint8)
             entropy = self._compute_binary_entropy(probability[:, 0])
+            # Training H_B uses teacher pseudo-labels. A final-student boundary is
+            # not the same quantity, so live inference intentionally does not emit it.
             boundary_entropy = None
             boundary_pixel_count = None
-            if self.boundary_enabled:
-                boundary = self._build_predicted_boundary(mask > 0, radius=self.boundary_radius)
-                boundary_pixel_count = int(boundary.sum().item())
-                boundary_entropy = (entropy * boundary.float()).sum() / boundary.float().sum().clamp_min(1e-6)
 
             mask_map = mask[0].detach().cpu().numpy().astype(np.uint8)
             probability_map = probability[0, 0].detach().cpu().numpy().astype(np.float32)
@@ -336,7 +352,7 @@ class TorchSegmentationPredictor(SegmentationPredictor):
                 "available": True,
                 "global_entropy": float(entropy.mean().item()),
                 "boundary_entropy": None if boundary_entropy is None else float(boundary_entropy.item()),
-                "boundary_available": self.boundary_enabled,
+                "boundary_available": False,
                 "boundary_pixel_count": boundary_pixel_count,
                 "uncertain_pixel_ratio": float((entropy >= self.uncertainty_threshold).float().mean().item()),
                 "predicted_tumor_ratio": float(mask.float().mean().item()),
@@ -396,7 +412,6 @@ class TorchSegmentationPredictor(SegmentationPredictor):
             "threshold_source": self.threshold_source,
             "evaluation_shape_hw": [self.img_size, self.img_size],
             "uncertainty_summary": uncertainty_summary,
-            "conformal_summary": None,
         }
         auxiliary_maps = {
             name: self._resize_map_for_display(values, original_gray.shape)

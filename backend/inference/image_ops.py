@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -31,9 +32,19 @@ def save_grayscale_png(path, image: np.ndarray) -> None:
 
 
 def colorize_heatmap(values: np.ndarray) -> np.ndarray:
-    """Use a sequential display palette; values remain unchanged in the saved artifact."""
-    arr = np.clip(np.asarray(values, dtype=np.float32), 0.0, 1.0)
-    low = np.array([23.0, 42.0, 79.0], dtype=np.float32)
-    high = np.array([249.0, 203.0, 82.0], dtype=np.float32)
-    rgb = low + arr[..., None] * (high - low)
-    return np.clip(np.rint(rgb), 0, 255).astype(np.uint8)
+    """Render the fixed [0, 1] Turbo colormap used by the runtime reference."""
+    clipped = np.clip(np.asarray(values, dtype=np.float32), 0.0, 1.0)
+    heat = np.rint(clipped * 255.0).astype(np.uint8)
+    colored_bgr = cv2.applyColorMap(heat, cv2.COLORMAP_TURBO)
+    return cv2.cvtColor(colored_bgr, cv2.COLOR_BGR2RGB)
+
+
+def blend_heatmap_rgb(base: np.ndarray, heatmap_rgb: np.ndarray) -> np.ndarray:
+    """Match the historic runtime heatmap blend: 45% X-ray, 55% Turbo map."""
+    return cv2.addWeighted(
+        np.asarray(base, dtype=np.uint8),
+        0.45,
+        np.asarray(heatmap_rgb, dtype=np.uint8),
+        0.55,
+        0.0,
+    )

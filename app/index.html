@@ -35,7 +35,7 @@
             <h2>BTXRD và FracAtlas</h2>
           </div>
           <p class="section-intro">Tập dữ liệu và phân chia cố định dùng cho các thí nghiệm được trình bày.</p>
-          <div id="dataset-table"></div>
+          <div class="dataset-split-tables" id="dataset-split-tables"></div>
         </section>
 
         <section class="panel" id="experiments">
@@ -43,24 +43,7 @@
             <p class="section-tag">02. Kết quả thực nghiệm</p>
             <h2>Kết quả đã kiểm chứng</h2>
           </div>
-          <div class="results-grid two-up">
-            <div class="result-card">
-              <h3>BTXRD: backbone comparison</h3>
-              <div id="btxrd-backbones-table"></div>
-            </div>
-            <div class="result-card">
-              <h3>BTXRD: SegFormer-B0 ablation</h3>
-              <div id="btxrd-ablation-table"></div>
-            </div>
-          </div>
-          <div class="results-grid two-up">
-            <div class="result-card"><h3>FracAtlas: backbone comparison</h3><div id="fracatlas-backbones-table"></div></div>
-            <div class="result-card">
-              <h3>FracAtlas: SegFormer-B0 ablation</h3>
-              <p class="muted-note">Kết quả đang được cập nhật.</p>
-              <div id="fracatlas-ablation-table"></div>
-            </div>
-          </div>
+          <div class="results-grid two-up" id="experiment-sections"></div>
         </section>
 
         <section class="panel" id="live-lab">
@@ -73,22 +56,28 @@
             <button type="button" class="demo-tab hidden" id="live-tab" role="tab" aria-selected="false">Live Demo</button>
           </div>
           <div class="demo-controls" id="static-demo-panel" role="tabpanel">
-            <div class="control-card compact-control">
-              <h3>Chọn trường hợp tham chiếu</h3>
-              <label class="field-label" for="static-sample-select">Ảnh mẫu curated</label>
-              <select id="static-sample-select" class="text-input"></select>
-              <p class="muted-note">Kết quả được chuẩn bị offline; không tải checkpoint hoặc chạy mô hình tại runtime.</p>
-              <p class="inline-error hidden" id="static-error" aria-live="polite"></p>
+            <div class="static-dataset-grid">
+              <div class="control-card compact-control">
+                <h3>BTXRD</h3>
+                <label class="field-label" for="static-sample-select-btxrd">Ảnh mẫu curated</label>
+                <select id="static-sample-select-btxrd" class="text-input"></select>
+              </div>
+              <div class="control-card compact-control">
+                <h3>FracAtlas</h3>
+                <label class="field-label" for="static-sample-select-fracatlas">Ảnh mẫu curated</label>
+                <select id="static-sample-select-fracatlas" class="text-input"></select>
+              </div>
             </div>
+            <p class="muted-note">Kết quả được chuẩn bị offline; không tải checkpoint hoặc chạy mô hình tại runtime.</p>
+            <p class="inline-error hidden" id="static-error" aria-live="polite"></p>
           </div>
           <div class="demo-controls hidden" id="live-demo-panel" role="tabpanel">
             <div class="control-card compact-control">
               <h3>Live Demo</h3>
-              <label class="field-label" for="model-select">Model</label>
-              <select id="model-select" class="text-input"></select>
               <label class="field-label" for="live-upload">Tải ảnh X-quang mới</label>
               <input id="live-upload" class="text-input" type="file" accept="image/png,image/jpeg" />
               <p class="muted-note">PNG hoặc JPEG, tối đa 10 MB. Ảnh upload sẽ được chọn tự động.</p>
+              <p class="muted-note" id="live-routing-note">Ảnh tích hợp sẽ tự định tuyến theo dataset; ảnh tải lên sẽ hiển thị các kết quả thay thế phù hợp.</p>
               <label class="field-label" for="image-select">Ảnh đầu vào</label>
               <select id="image-select" class="text-input"></select>
               <div class="live-preview image-frame"><img id="live-preview" alt="Xem trước ảnh đầu vào Live Demo" /></div>
@@ -114,7 +103,6 @@
               <section class="uncertainty-panel hidden" id="uncertainty-panel">
                 <div class="uncertainty-header"><div><p class="section-tag">Predictive uncertainty</p><h3>Bất định và hậu kiểm</h3></div><p class="muted-note" id="uncertainty-note"></p></div>
                 <div class="uncertainty-section"><div class="uncertainty-score-grid" id="uncertainty-score-grid"></div><div class="audit-interpretation" id="audit-interpretation"></div><div class="uncertainty-heatmaps" id="uncertainty-heatmaps"></div></div>
-                <div class="uncertainty-section"><div class="uncertainty-subheader"><div><p class="section-tag">Risk control</p><h4>CRC / conformal applicability</h4></div><p class="muted-note" id="risk-control-note"></p></div><div id="risk-control-status"></div></div>
               </section>
               <p class="run-status muted-note" id="segmentation-status" aria-live="polite"></p>
             </div>

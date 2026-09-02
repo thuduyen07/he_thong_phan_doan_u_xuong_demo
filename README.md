@@ -10,7 +10,7 @@ Một codebase hỗ trợ hai mode rõ ràng qua biến môi trường `DEMO_MOD
 
 - Chỉ hiển thị các ảnh curated cùng segmentation, probability/entropy map và metric tham chiếu đã được chuẩn bị offline.
 - Không tải checkpoint, không gọi predictor, không cần `torch` hoặc `transformers`.
-- `H_G`, `H_B` và CRC chỉ hiện khi metadata đã được materialize từ pipeline nguồn; giá trị thiếu được ghi `—`, không suy diễn từ heatmap.
+- `H_G` và các heatmap hậu kiểm chỉ hiện khi metadata đã được materialize từ pipeline nguồn; giá trị thiếu được ghi `—`, không suy diễn từ heatmap.
 - Kết quả Static ghép `Ảnh gốc` với `Lớp phủ phân đoạn`, và `Bản đồ xác suất vùng u` với `Bản đồ bất định dự đoán`; phần hậu kiểm diễn giải các đại lượng mô hình theo ngôn ngữ trung tính, không tạo confidence score.
 - Đây là mode khuyến nghị cho Render Free.
 
@@ -75,15 +75,23 @@ Dùng Docker build arg `INSTALL_INFERENCE=true`, đặt `DEMO_MODE=live`, cung c
 
 ## Curated static samples
 
-`resources/samples/samples.yaml` là nguồn dữ liệu duy nhất cho Static Demo. Mỗi entry ghi case type, metric/provenance và `static_artifact_dir`; browser chỉ nhận URL tương đối dưới `/sample-assets/`.
+`resources/samples/samples.yaml` là nguồn dữ liệu duy nhất cho Static Demo. Mỗi entry ghi case type, metric/provenance, `static_artifact_dir`, cùng hai artifact bắt buộc `probability_heatmap` và `entropy_heatmap`; cả hai được render offline từ map số xác thực theo thang cố định `[0, 1]`, dùng OpenCV Turbo và cùng tỷ lệ blend với Live Demo. Browser chỉ nhận URL tương đối dưới `/sample-assets/`; Static Demo không fallback sang ảnh PNG chung hoặc raw-map không có ngữ nghĩa hiển thị.
 
 Tạo hoặc cập nhật danh sách ảnh đã được chấp thuận, de-identified:
 
 ```bash
 python tools/curate_demo_samples.py \
-  --dataset btxrd --method mean_teacher_entropy --seed 42 --split test \
+  --dataset btxrd --method btxrd_segformer_b0_boundary_adaptive_crc --seed 42 --split test \
   --metrics-csv /path/to/per_case_metrics.csv \
   --source-root /path/to/research/outputs \
+  --confirm-public-deidentified
+```
+
+```bash
+python tools/curate_demo_samples.py \
+  --dataset fracatlas --method fracatlas_segformer_b0_boundary_adaptive_crc --seed 42 --split test \
+  --metrics-csv /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs/experiments/fracatlas/segformer_b0/ablation_pw5_6_bce_dice/legacy_20260831/ablation/fracatlas_ablation_boundary_difficulty_pw5_6_bce_dice_segformer_b0_seed-42_20260831/predictions/evaluation_test/reports/per_case_metrics.csv \
+  --source-root /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs \
   --confirm-public-deidentified
 ```
 
@@ -115,5 +123,5 @@ Tool dùng một predictor cache và chỉ xử lý unique curated images. Khôn
 
 - SegFormer binary inference: grayscale -> bilinear resize 512 -> 3 channels -> ImageNet normalization -> sigmoid -> evaluation threshold.
 - Predictive entropy là entropy nhị phân chuẩn hóa, không phải diagnostic confidence.
-- `H_B` chỉ có ý nghĩa khi boundary mechanism/config hỗ trợ và biên dự đoán không rỗng.
-- CRC/conformal chỉ được hiển thị khi backend/static metadata có artifact checkpoint-specific hợp lệ.
+- `H_B` chỉ được hiển thị khi có định nghĩa hậu kiểm đã được xác minh tương đương với pipeline nguồn.
+- Boundary-Adaptive CRC mô tả chiến lược huấn luyện để kiểm soát độ tin cậy pseudo-label của teacher. Student checkpoint cuối được suy luận theo quy tắc đánh giá nghiên cứu: sigmoid probability và ngưỡng nhị phân `0.50`; Live Demo không cần `crc_state.json`, tập calibration hoặc CRC runtime adapter.

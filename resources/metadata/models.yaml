@@ -1,15 +1,4 @@
 models:
-  - id: btxrd_segformer_b0_entropy
-    display_name: SegFormer-B0 | BTXRD | Mean Teacher + entropy
-    dataset: btxrd
-    architecture: segformer_b0
-    method: mean_teacher_entropy
-    config: resources/configs/btxrd_segformer_b0_entropy.yaml
-    checkpoint: resources/checkpoints/btxrd_segformer_b0_entropy_student_best.pt
-    threshold: 0.50
-    calibration_artifact: ""
-    enabled: true
-    description: Registered BTXRD Mean Teacher + entropy checkpoint. It uses the research default binary threshold 0.50; no CRC calibration artifact is required.
   - id: btxrd_segformer_b0_boundary_adaptive_crc
     display_name: SegFormer-B0 | BTXRD | Mean Teacher + boundary adaptive crc
     dataset: btxrd
@@ -18,6 +7,21 @@ models:
     config: resources/configs/btxrd_segformer_b0_boundary_adaptive_crc.yaml
     checkpoint: resources/checkpoints/btxrd_segformer_b0_boundary_adaptive_crc_student_best.pt
     threshold: 0.50
-    calibration_artifact: ""
+    trained_with_crc: true
+    requires_calibration: false
+    inference_rule: binary_threshold
     enabled: true
-    description: Registered BTXRD Mean Teacher + boundary adaptive crc checkpoint. It uses the research default binary threshold 0.50;
+    description: SegFormer-B0 checkpoint trained with the Boundary-Adaptive CRC semi-supervised strategy. Final segmentation follows the research evaluation rule with binary threshold 0.50.
+  - id: fracatlas_segformer_b0_boundary_adaptive_crc
+    display_name: SegFormer-B0 | FracAtlas | Mean Teacher + boundary adaptive crc
+    dataset: fracatlas
+    architecture: segformer_b0
+    method: boundary_adaptive_crc
+    config: resources/configs/fracatlas_segformer_b0_boundary_adaptive_crc.yaml
+    checkpoint: resources/checkpoints/fracatlas_segformer_b0_boundary_adaptive_crc_student_best.pt
+    threshold: 0.50
+    trained_with_crc: true
+    requires_calibration: false
+    inference_rule: binary_threshold
+    enabled: true
+    description: SegFormer-B0 checkpoint trained with the Boundary-Adaptive CRC semi-supervised strategy. Final segmentation follows the research evaluation rule with binary threshold 0.50.

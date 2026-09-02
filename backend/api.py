@@ -113,7 +113,7 @@ def segment():
         app.logger.error("Live inference dependency import failed: %s", runtime["missing_dependencies"])
         return jsonify({"error": "DEPENDENCY_MISSING: Server chưa cài đầy đủ dependency cho live inference."}), 503
     try:
-        result = _live_service().run_segmentation(
+        result = _live_service().run_demo_segmentation(
             image_id=payload.get("image_id"),
             model_id=payload.get("model_id"),
         )

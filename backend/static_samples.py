@@ -14,6 +14,15 @@ SAMPLE_DIR = RESOURCES_DIR / "samples"
 SAMPLE_MANIFEST_PATH = SAMPLE_DIR / "samples.yaml"
 
 
+def _static_model_display_name(entry: dict) -> str:
+    source = dict(entry.get("source_evaluation") or {})
+    dataset = str(entry.get("dataset", "")).strip().upper()
+    method = str(source.get("method", "")).strip()
+    if method:
+        return f"SegFormer-B0 | {dataset} | {method.replace('_', ' ')}"
+    return f"SegFormer-B0 | {dataset}"
+
+
 def _safe_relative_asset(relative_path: str) -> Path | None:
     candidate = (SAMPLE_DIR / relative_path).resolve()
     try:
@@ -42,13 +51,22 @@ def list_static_samples() -> list[dict]:
     records: list[dict] = []
     for entry in load_static_samples():
         original = str(entry.get("file", "")).strip()
+        artifacts = dict(entry.get("artifacts") or {})
         records.append(
             {
                 "id": entry["id"],
                 "display_name": str(entry.get("display_name", entry["id"])),
                 "dataset": str(entry.get("dataset", "")),
                 "case_type": str(entry.get("case_type", "")),
-                "available": _asset_url(original) is not None,
+                "available": all(
+                    [
+                        _asset_url(original) is not None,
+                        _asset_url(str(artifacts.get("overlay", "")).strip()) is not None,
+                        _asset_url(str(artifacts.get("mask", "")).strip()) is not None,
+                        _asset_url(str(artifacts.get("probability_heatmap", "")).strip()) is not None,
+                        _asset_url(str(artifacts.get("entropy_heatmap", "")).strip()) is not None,
+                    ]
+                ),
             }
         )
     return records
@@ -67,16 +85,15 @@ def get_static_result(sample_id: str) -> dict:
     artifacts = {
         "overlay": f"{artifact_dir}/overlay.png" if artifact_dir else "",
         "mask": f"{artifact_dir}/mask.png" if artifact_dir else "",
-        "probability": f"{artifact_dir}/probability.png" if artifact_dir else "",
-        "entropy": f"{artifact_dir}/entropy.png" if artifact_dir else "",
         **dict(entry.get("artifacts") or {}),
     }
     uncertainty = dict(entry.get("uncertainty") or {})
-    risk_control = dict(entry.get("risk_control") or {})
     metrics = dict(entry.get("metrics") or {})
 
-    probability_url = _asset_url(str(artifacts.get("probability", "")).strip())
-    entropy_url = _asset_url(str(artifacts.get("entropy", "")).strip())
+    # Static visual maps must be explicitly declared heatmaps. Never fall back
+    # to legacy generic PNG names that may not preserve the display semantics.
+    probability_heatmap_url = _asset_url(str(artifacts.get("probability_heatmap", "")).strip())
+    entropy_heatmap_url = _asset_url(str(artifacts.get("entropy_heatmap", "")).strip())
     global_entropy = dict(uncertainty.get("global") or {
         "available": False,
         "name": "H_G",
@@ -98,33 +115,30 @@ def get_static_result(sample_id: str) -> dict:
             "case_type": str(entry.get("case_type", "")),
         },
         "model": {
-            "display_name": "Mean Teacher + Entropy — BTXRD",
+            "display_name": _static_model_display_name(entry),
             "method": str((entry.get("source_evaluation") or {}).get("method", "")),
         },
         "artifacts": {
             "original": original_url,
             "overlay": _asset_url(str(artifacts.get("overlay", "")).strip()),
             "mask": _asset_url(str(artifacts.get("mask", "")).strip()),
-            "probability": probability_url,
-            "entropy": entropy_url,
+            "prediction_mask": _asset_url(str(artifacts.get("prediction_mask", artifacts.get("mask", ""))).strip()),
+            "reference_mask": _asset_url(str(artifacts.get("reference_mask", "")).strip()),
+            "probability_heatmap": probability_heatmap_url,
+            "entropy_heatmap": entropy_heatmap_url,
         },
         "uncertainty": {
-            "available": entropy_url is not None,
+            "available": entropy_heatmap_url is not None,
             "pixel_entropy": {
-                "available": entropy_url is not None,
-                "heatmap_url": entropy_url,
+                "available": entropy_heatmap_url is not None,
+                "heatmap_url": entropy_heatmap_url,
                 "normalization": "normalized_binary_entropy",
                 "range": [0.0, 1.0],
             },
-            "tumor_probability": {"available": probability_url is not None, "heatmap_url": probability_url, "range": [0.0, 1.0]},
+            "tumor_probability": {"available": probability_heatmap_url is not None, "heatmap_url": probability_heatmap_url, "range": [0.0, 1.0]},
             "global": global_entropy,
             "boundary": boundary_entropy,
             "summary": dict(uncertainty.get("summary") or {}),
-            "risk_control": risk_control or {
-                "available": False,
-                "reason": "not_applicable",
-                "note": "Checkpoint nguồn không có CRC/conformal artifact phù hợp.",
-            },
             "note": "Artifact hậu kiểm được chuẩn bị offline từ cùng pipeline phân đoạn đã đăng ký.",
         },
         "reference_metrics": {

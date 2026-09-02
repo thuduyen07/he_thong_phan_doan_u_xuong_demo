@@ -121,7 +121,6 @@ def list_model_records() -> list[dict[str, object]]:
                 "architecture": str(item.get("architecture", "")),
                 "method": str(item.get("method", "")),
                 "threshold": item.get("threshold"),
-                "calibration_available": bool(entry["calibration_path"] and entry["calibration_path"].is_file()),
                 "available": not reasons,
                 "unavailable_reason": reasons[0] if reasons else None,
                 "unavailable_reasons": reasons,
@@ -129,6 +128,14 @@ def list_model_records() -> list[dict[str, object]]:
             }
         )
     LOGGER.info("Model registry: %d declared, %d available.", len(records), sum(record["available"] for record in records))
+    return records
+
+
+def resolve_model_records_for_dataset(dataset_id: str, *, available_only: bool = True) -> list[dict[str, object]]:
+    dataset = str(dataset_id or "").strip().lower()
+    records = [record for record in list_model_records() if str(record.get("dataset", "")).strip().lower() == dataset]
+    if available_only:
+        records = [record for record in records if bool(record.get("available"))]
     return records
 
 
@@ -157,7 +164,10 @@ def _declared_model_specs() -> dict[str, PredictorSpec]:
                 "architecture": str(item.get("architecture", "")),
                 "method": str(item.get("method", "")),
                 "threshold": item.get("threshold"),
-                "calibration_required": bool(entry["requires_calibration"]),
+                "trained_with_crc": bool(item.get("trained_with_crc", False)),
+                "requires_calibration_at_inference": bool(entry["requires_calibration"]),
+                "inference_calibration_declared": "requires_calibration" in item,
+                "inference_rule": str(item.get("inference_rule", "binary_threshold")),
             },
         )
     return specs
@@ -283,6 +293,15 @@ def list_model_specs() -> list[PredictorSpec]:
         **_declared_model_specs(),
     }
     return sorted(specs.values(), key=lambda item: item.display_name.lower())
+
+
+def resolve_model_specs_for_dataset(dataset_id: str) -> list[PredictorSpec]:
+    dataset = str(dataset_id or "").strip().lower()
+    return [
+        spec
+        for spec in list_model_specs()
+        if str((spec.extra_metadata or {}).get("dataset", "")).strip().lower() == dataset
+    ]
 
 
 def build_predictor(model_id: str):

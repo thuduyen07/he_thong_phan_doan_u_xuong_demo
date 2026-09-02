@@ -1,5 +1,34 @@
 #!/usr/bin/env python3
-"""Curate a small, reproducible set of deployable segmentation-demo samples."""
+"""Curate a small, reproducible set of deployable segmentation-demo samples.
+
+
+Tạo hoặc cập nhật danh sách ảnh đã được chấp thuận, de-identified:
+
+```bash
+python tools/curate_demo_samples.py \
+  --dataset btxrd --method btxrd_segformer_b0_mean_teacher_entropy --seed 42 --split test \
+  --metrics-csv /path/to/per_case_metrics.csv \
+  --source-root /path/to/research/outputs \
+  --confirm-public-deidentified
+```
+
+```bash
+python tools/curate_demo_samples.py \
+  --dataset fracatlas --method fracatlas_segformer_b0_mean_teacher_entropy --seed 42 --split test \
+  --metrics-csv /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs/experiments/fracatlas/segformer_b0/ablation/20260831/ablation/fracatlas_ablation_mean_teacher_entropy_pw5_6_bce_dice_segformer_b0_seed-42_20260831/predictions/evaluation_test/reports/per_case_metrics.csv \
+  --source-root /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs \
+  --confirm-public-deidentified
+```
+
+```bash
+python tools/curate_demo_samples.py \
+  --dataset btxrd --method btxrd_segformer_b0_mean_teacher_entropy --seed 42 --split test \
+  --metrics-csv /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs/experiments/btxrd/segformer_b0/ablation/20260827/ablation/btxrd_ablation_mean_teacher_entropy_segformer_b0_seed-42_20260827/predictions/evaluation_test/reports/per_case_metrics.csv \
+  --source-root /Users/duyennguyen/Downloads/Master-Thesis/source_code/bone_seg_option1/outputs \
+  --confirm-public-deidentified
+```
+
+"""
 
 from __future__ import annotations
 
@@ -25,7 +54,7 @@ REQUIRED_COLUMNS = {
     "reference_positive_pixels", "pred_positive_pixels",
 }
 CATEGORY_ORDER = (
-    "fn", "fp", "tn", "tp", "best_dice", "worst_dice", "best_iou", "worst_iou", "best_hd95", "worst_hd95",
+    "best_dice", "best_iou", "best_hd95", "tp", "tn", "fn", "fp", "worst_dice", "worst_iou", "worst_hd95",
 )
 DISPLAY_NAMES = {
     "fn": "FN", "fp": "FP", "tn": "TN", "tp": "TP",
@@ -106,6 +135,21 @@ def resolve_source(raw_path: str, source_root: Path) -> Path:
     return mapped
 
 
+def resolve_reference_mask(dataset: str, original_image_id: str, reference_root: Path) -> Path:
+    dataset_key = str(dataset).strip().lower()
+    if dataset_key == "btxrd":
+        candidate = reference_root / "canonical_datasets" / "btxrd_tumor" / "masks" / original_image_id / f"{original_image_id}.png"
+    elif dataset_key == "fracatlas":
+        case_group = "non_fractured" if original_image_id.startswith("non_fractured__") else "fractured"
+        image_stem = original_image_id.split("__", 1)[-1]
+        candidate = reference_root / "canonical_datasets" / "fracatlas_fracture" / "masks" / case_group / original_image_id / f"{image_stem}.png"
+    else:
+        raise FileNotFoundError(f"Unsupported dataset for reference mask copy: {dataset}")
+    if not candidate.is_file():
+        raise FileNotFoundError(f"Reference mask does not exist: {candidate}")
+    return candidate
+
+
 def build_manifest(dataset: str, source_evaluation: dict, selections: dict[str, dict], source_root: Path, output_dir: Path, copy_assets: bool) -> tuple[list[dict], int]:
     entries: list[dict] = []
     unique_sources: dict[str, Path] = {}
@@ -120,7 +164,7 @@ def build_manifest(dataset: str, source_evaluation: dict, selections: dict[str, 
         relative_file = Path(dataset) / f"{dataset}_{original_id}{suffix}"
         entries.append({
             "id": f"{dataset}_{category}_{original_id}",
-            "display_name": f"[sample] {dataset}_{DISPLAY_NAMES[category]}_{original_id}",
+            "display_name": f"{dataset} {DISPLAY_NAMES[category]} {original_id}",
             "dataset": dataset,
             "case_type": category,
             "original_image_id": original_id,
@@ -141,7 +185,14 @@ def build_manifest(dataset: str, source_evaluation: dict, selections: dict[str, 
     return entries, len(unique_sources)
 
 
-def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: str) -> None:
+def prepare_static_artifacts(
+    manifest_path: Path,
+    output_dir: Path,
+    model_id: str,
+    *,
+    dataset_filter: str | None = None,
+    reference_root: Path | None = None,
+) -> None:
     """Materialize only curated samples through the already-registered live adapter.
 
     This command is offline preparation. It is never invoked by Flask startup or
@@ -154,6 +205,8 @@ def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: st
     generated: dict[str, dict] = {}
     for entry in entries:
         if not isinstance(entry, dict):
+            continue
+        if dataset_filter and str(entry.get("dataset", "")).strip() != dataset_filter:
             continue
         source_id = str(entry.get("original_image_id", "")).strip()
         if not source_id:
@@ -168,8 +221,8 @@ def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: st
         source_names = {
             "mask": result["mask_image_url"],
             "overlay": result["overlay_image_url"],
-            "probability": result["uncertainty"]["tumor_probability"].get("heatmap_url"),
-            "entropy": result["uncertainty"]["pixel_entropy"].get("heatmap_url"),
+            "probability_heatmap": result["uncertainty"]["tumor_probability"].get("heatmap_url"),
+            "entropy_heatmap": result["uncertainty"]["pixel_entropy"].get("heatmap_url"),
         }
         for name, url in source_names.items():
             if not url:
@@ -178,7 +231,18 @@ def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: st
             if not source.is_file():
                 raise FileNotFoundError(f"Prepared live artifact does not exist: {source}")
             shutil.copy2(source, destination / f"{name}.png")
+        if reference_root is not None:
+            reference_source = resolve_reference_mask(str(entry.get("dataset", "")), source_id, reference_root)
+            shutil.copy2(reference_source, destination / "reference_mask.png")
         entry["static_artifact_dir"] = artifact_dir.as_posix()
+        entry["artifacts"] = {
+            "overlay": (artifact_dir / "overlay.png").as_posix(),
+            "mask": (artifact_dir / "mask.png").as_posix(),
+            "prediction_mask": (artifact_dir / "mask.png").as_posix(),
+            "reference_mask": (artifact_dir / "reference_mask.png").as_posix() if reference_root is not None else str((entry.get("artifacts") or {}).get("reference_mask", "")).strip(),
+            "probability_heatmap": (artifact_dir / "probability_heatmap.png").as_posix(),
+            "entropy_heatmap": (artifact_dir / "entropy_heatmap.png").as_posix(),
+        }
         entry["uncertainty"] = {
             "global": result["uncertainty"].get("global", {}),
             "boundary": result["uncertainty"].get("boundary", {}),
@@ -186,7 +250,46 @@ def prepare_static_artifacts(manifest_path: Path, output_dir: Path, model_id: st
         }
         entry["risk_control"] = result["uncertainty"].get("risk_control", {})
     manifest_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    print(f"prepared_static_samples={len(generated)} manifest={manifest_path}")
+    print(f"prepared_static_samples={len(generated)} manifest={manifest_path} dataset={dataset_filter or 'all'}")
+
+
+def refresh_static_heatmaps(manifest_path: Path, output_dir: Path, model_id: str, *, dataset_filter: str | None = None) -> None:
+    """Refresh only precomputed heatmaps, preserving curated metadata and metrics."""
+    from backend.inference.service import run_segmentation
+
+    payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"samples": []}
+    entries = payload.get("samples", []) if isinstance(payload, dict) else []
+    generated: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if dataset_filter and str(entry.get("dataset", "")).strip() != dataset_filter:
+            continue
+        source_id = str(entry.get("original_image_id", "")).strip()
+        if not source_id:
+            continue
+        result = generated.get(source_id)
+        if result is None:
+            result = run_segmentation(image_id=f"default:{entry['id']}", model_id=model_id)
+            generated[source_id] = result
+        artifact_paths = dict(entry.get("artifacts") or {})
+        heatmap_urls = {
+            "probability_heatmap": result["uncertainty"]["tumor_probability"].get("heatmap_url"),
+            "entropy_heatmap": result["uncertainty"]["pixel_entropy"].get("heatmap_url"),
+        }
+        for name, url in heatmap_urls.items():
+            target_relative_path = str(artifact_paths.get(name, "")).strip()
+            if not target_relative_path:
+                raise ValueError(f"Curated sample {entry.get('id')} is missing artifacts.{name}.")
+            if not url:
+                raise ValueError(f"Live result did not produce {name} for {entry.get('id')}.")
+            source = PROJECT_ROOT / url.lstrip("/")
+            if not source.is_file():
+                raise FileNotFoundError(f"Prepared live artifact does not exist: {source}")
+            destination = output_dir / target_relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+    print(f"refreshed_static_heatmaps={len(generated)} manifest={manifest_path} dataset={dataset_filter or 'all'}")
 
 
 def main() -> None:
@@ -196,17 +299,29 @@ def main() -> None:
     parser.add_argument("--source-root", type=Path, help="Research repository's `outputs` directory.")
     parser.add_argument("--output-dir", type=Path, default=Path("resources/samples"))
     parser.add_argument("--manifest", type=Path, default=Path("resources/samples/samples.yaml"))
-    parser.add_argument("--method", default="mean_teacher_entropy")
+    parser.add_argument("--method", default="btxrd_segformer_b0_boundary_adaptive_crc")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split", default="test")
     parser.add_argument("--confirm-public-deidentified", action="store_true", help="Required before copying medical-image assets.")
     parser.add_argument("--prepare-static-artifacts", action="store_true", help="Run only curated samples through the registered live adapter and materialize deployable artifacts.")
+    parser.add_argument("--refresh-static-heatmaps", action="store_true", help="Regenerate only curated probability/entropy heatmaps while preserving manifest metadata.")
     parser.add_argument("--static-model-id", help="Registered model id used only with --prepare-static-artifacts.")
+    parser.add_argument("--dataset-filter", choices=("btxrd", "fracatlas"), help="Restrict static artifact generation to one dataset in the manifest.")
+    parser.add_argument("--reference-root", type=Path, help="Research repository `outputs` directory used to copy canonical Ground Truth masks.")
     args = parser.parse_args()
-    if args.prepare_static_artifacts:
+    if args.prepare_static_artifacts or args.refresh_static_heatmaps:
         if not args.static_model_id:
-            raise ValueError("--static-model-id is required with --prepare-static-artifacts.")
-        prepare_static_artifacts(args.manifest, args.output_dir, args.static_model_id)
+            raise ValueError("--static-model-id is required with static artifact preparation.")
+        if args.refresh_static_heatmaps:
+            refresh_static_heatmaps(args.manifest, args.output_dir, args.static_model_id, dataset_filter=args.dataset_filter)
+        else:
+            prepare_static_artifacts(
+                args.manifest,
+                args.output_dir,
+                args.static_model_id,
+                dataset_filter=args.dataset_filter,
+                reference_root=args.reference_root,
+            )
         return
     if not args.dataset or not args.metrics_csv or not args.source_root or not args.metrics_csv.is_file() or not args.source_root.is_dir():
         raise FileNotFoundError("Metrics CSV or source root does not exist.")

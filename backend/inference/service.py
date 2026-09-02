@@ -12,9 +12,16 @@ import numpy as np
 from PIL import Image
 import yaml
 
-from backend.inference.image_ops import blend_rgb, colorize_heatmap, save_grayscale_png, save_rgb_png
-from backend.inference.registry import build_predictor, list_model_records, list_model_specs
+from backend.inference.image_ops import blend_heatmap_rgb, colorize_heatmap, save_grayscale_png, save_rgb_png
+from backend.inference.registry import (
+    build_predictor,
+    list_model_records,
+    list_model_specs,
+    resolve_model_records_for_dataset,
+    resolve_model_specs_for_dataset,
+)
 from backend.inference.runtime_paths import APP_DIR, RESOURCES_DIR, RUNTIME_STATIC_DIR
+from backend.static_samples import load_static_samples
 
 
 UPLOAD_DIR = RUNTIME_STATIC_DIR / "uploads"
@@ -132,14 +139,8 @@ def list_uploaded_images() -> list[dict]:
 
 
 def list_default_demo_images() -> list[dict]:
-    if not SAMPLE_MANIFEST_PATH.exists():
-        return []
-    payload = yaml.safe_load(SAMPLE_MANIFEST_PATH.read_text(encoding="utf-8")) or {}
-    entries = payload.get("samples", []) if isinstance(payload, dict) else []
     samples: list[dict] = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
+    for entry in load_static_samples():
         relative_file = str(entry.get("file", "")).strip()
         sample_id = str(entry.get("id", "")).strip()
         if not relative_file or not sample_id:
@@ -155,6 +156,8 @@ def list_default_demo_images() -> list[dict]:
                 "stored_name": relative_file,
                 "image_url": f"/sample-assets/{relative_file}",
                 "source": "default",
+                "dataset": str(entry.get("dataset", "")).strip(),
+                "sample_id": sample_id,
             }
         )
     return samples
@@ -206,6 +209,10 @@ def available_models() -> list[dict]:
     return list_model_records()
 
 
+def resolve_models_for_dataset(dataset_id: str) -> list[dict[str, object]]:
+    return resolve_model_records_for_dataset(dataset_id, available_only=True)
+
+
 def _save_rgb_png(path: Path, image: np.ndarray) -> None:
     save_rgb_png(path, image)
 
@@ -224,13 +231,12 @@ def _save_mask_png(path: Path, mask: np.ndarray) -> None:
 
 def _save_heatmap_overlay(path: Path, original_rgb: np.ndarray, values: np.ndarray) -> None:
     colored = colorize_heatmap(values)
-    overlay = blend_rgb(original_rgb, colored, alpha=0.55)
+    overlay = blend_heatmap_rgb(original_rgb, colored)
     _save_rgb_png(path, overlay)
 
 
 def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
     summary = dict(artifacts.extra_metadata.get("uncertainty_summary") or {})
-    conformal_summary = dict(artifacts.extra_metadata.get("conformal_summary") or {})
     auxiliary_maps = artifacts.auxiliary_maps or {}
     if not summary or not auxiliary_maps:
         return {
@@ -252,36 +258,18 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
                 "value": None,
                 "reason": "boundary_not_enabled_or_not_emitted",
             },
-            "risk_control": {
-                "available": False,
-                "reason": "not_applicable",
-                "note": "Không có CRC/conformal artifact hợp lệ cho checkpoint này.",
-            },
-            "conformal": {
-                "available": False,
-                "summary": {},
-                "heatmaps": {},
-                "note": "Chưa có conformal output cho ảnh này.",
-            },
             "note": "Backend live hiện chưa sinh được uncertainty hậu kiểm cho ảnh này.",
         }
 
     heatmap_urls: dict[str, str] = {}
-    conformal_heatmap_urls: dict[str, str] = {}
     for map_name, map_values in auxiliary_maps.items():
         heatmap_name = f"{result_id}_{map_name}_heatmap.png"
         heatmap_path = RESULT_DIR / heatmap_name
         _save_heatmap_overlay(heatmap_path, artifacts.original, map_values)
-        target = conformal_heatmap_urls if map_name.startswith("conformal_") else heatmap_urls
-        target[map_name] = f"/runtime_static/results/{heatmap_name}"
+        heatmap_urls[map_name] = f"/runtime_static/results/{heatmap_name}"
 
     note = (
         "H_G là predictive entropy nhị phân chuẩn hóa của ảnh vừa segment; "
-    )
-    conformal_available = bool(conformal_summary.get("available"))
-    conformal_note = (
-        "Checkpoint này không dùng CRC/conformal khi suy luận live; "
-        "web không tạo risk-control metadata thay thế."
     )
     boundary_enabled = bool(summary.get("boundary_available"))
     boundary_value = summary.get("boundary_entropy")
@@ -323,17 +311,6 @@ def _build_uncertainty_payload(result_id: str, artifacts) -> dict:
             "value": boundary_value if boundary_available else None,
             "boundary_pixel_count": boundary_pixel_count,
             "reason": boundary_reason,
-        },
-        "risk_control": {
-            "available": conformal_available,
-            "reason": None if conformal_available else "not_applicable",
-            "note": conformal_note,
-        },
-        "conformal": {
-            "available": conformal_available,
-            "summary": conformal_summary,
-            "heatmaps": conformal_heatmap_urls,
-            "note": conformal_note,
         },
         "note": note,
     }
@@ -420,8 +397,11 @@ def run_segmentation(*, image_id: str | None, model_id: str | None) -> dict:
 
     return {
         "image_id": image_item["id"],
+        "image_source": image_item.get("source"),
+        "image_dataset": image_item.get("dataset"),
         "model_id": artifacts.model_id,
         "display_name": selected_spec.display_name if selected_spec else artifacts.model_id,
+        "dataset": str((selected_spec.extra_metadata or {}).get("dataset", "")) if selected_spec else "",
         "checkpoint_name": artifacts.checkpoint_path.name,
         "original_image_url": image_item["image_url"],
         "original_filename": image_item.get("filename") or image_item["stored_name"],
@@ -430,4 +410,50 @@ def run_segmentation(*, image_id: str | None, model_id: str | None) -> dict:
         "note": artifacts.note,
         "metadata": artifacts.extra_metadata,
         "uncertainty": uncertainty_payload,
+    }
+
+
+def run_demo_segmentation(*, image_id: str | None, model_id: str | None) -> dict:
+    image_item = resolve_demo_image(image_id)
+    image_source = str(image_item.get("source", "")).strip()
+    trusted_dataset = str(image_item.get("dataset", "")).strip().lower()
+    if image_source == "default":
+        eligible_specs = resolve_model_specs_for_dataset(trusted_dataset)
+        if model_id:
+            eligible_specs = [spec for spec in eligible_specs if spec.model_id == model_id] or eligible_specs
+        if not eligible_specs:
+            raise FileNotFoundError(f"No live-capable model is registered for dataset `{trusted_dataset}`.")
+        results = [run_segmentation(image_id=image_item["id"], model_id=eligible_specs[0].model_id)]
+        return {
+            "image": {
+                "id": image_item["id"],
+                "source": image_source,
+                "dataset": trusted_dataset,
+                "display_name": image_item.get("display_name") or image_item.get("filename"),
+            },
+            "routing": {
+                "mode": "trusted_dataset",
+                "criterion": "trusted_sample_metadata.dataset",
+                "datasets": [trusted_dataset],
+            },
+            "results": results,
+        }
+
+    eligible_models = [record for record in list_model_records() if record.get("available") and str(record.get("dataset", "")).strip()]
+    if model_id:
+        eligible_models = [record for record in eligible_models if record["model_id"] == model_id] or eligible_models
+    results = [run_segmentation(image_id=image_item["id"], model_id=str(record["model_id"])) for record in eligible_models]
+    return {
+        "image": {
+            "id": image_item["id"],
+            "source": image_source,
+            "dataset": None,
+            "display_name": image_item.get("display_name") or image_item.get("filename"),
+        },
+        "routing": {
+            "mode": "multi_model_alternatives",
+            "criterion": "no_validated_cross_dataset_selector",
+            "datasets": [str(record.get("dataset", "")).strip() for record in eligible_models],
+        },
+        "results": results,
     }
